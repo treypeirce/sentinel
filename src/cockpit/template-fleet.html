@@ -9,92 +9,105 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
 <style>
   :root{
-    --bg:#0a0c10; --panel:#111520; --panel2:#161b28; --line:#232a39;
-    --ink:#e9edf4; --dim:#8b98ac; --faint:#5c6880;
-    --cyan:#33e1c4; --amber:#f5b13c; --grey:#7c8aa0; --red:#f2555a; --green:#49d17f; --violet:#8b9cff;
+    --bg:#f6f7f9; --panel:#ffffff; --panel2:#fafbfc; --line:#e7e9ee;
+    --ink:#171a20; --dim:#5c6472; --faint:#9aa2af;
+    --blue:#2760e8; --bluebg:#eef3fe;
+    --amber:#a16207; --amberbg:#fbf5e6;
+    --green:#12824c; --greenbg:#ecf8f1;
+    --red:#c03538; --redbg:#fdf0f0;
+    --grey:#6e7684; --greybg:#f1f3f6;
     --mono:'JetBrains Mono',ui-monospace,monospace; --sans:'Inter',system-ui,sans-serif;
   }
   *{box-sizing:border-box;margin:0;padding:0}
-  body{background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.5;-webkit-font-smoothing:antialiased;
-    background-image:radial-gradient(circle at 88% -6%,rgba(51,225,196,.08),transparent 44%),radial-gradient(circle at 4% 108%,rgba(139,156,255,.06),transparent 42%);min-height:100vh}
+  body{background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.5;-webkit-font-smoothing:antialiased;min-height:100vh}
   .mono{font-family:var(--mono)}
-  .wrap{max-width:1280px;margin:0 auto;padding:22px 5vw 48px}
-  a{color:var(--cyan);text-decoration:none}
+  .wrap{max-width:1240px;margin:0 auto;padding:26px 5vw 56px}
+  a{color:var(--blue);text-decoration:none} a:hover{text-decoration:underline}
 
-  .top{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px;padding-bottom:16px;border-bottom:1px solid var(--line)}
-  .brand{display:flex;align-items:center;gap:13px}
-  .mark{width:38px;height:38px;border-radius:10px;background:linear-gradient(150deg,var(--cyan),#1b9e8c);display:grid;place-items:center;color:#04231e;font-weight:800;font-size:20px;box-shadow:0 6px 20px rgba(51,225,196,.2)}
-  .brand h1{font-size:18px;font-weight:700;letter-spacing:-.01em}
-  .brand .tag{font-family:var(--mono);font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--faint)}
+  .top{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px}
+  .brand{display:flex;align-items:center;gap:12px}
+  .mark{width:30px;height:30px;border-radius:8px;background:var(--ink);color:#fff;display:grid;place-items:center;font-size:15px}
+  .brand h1{font-size:17px;font-weight:700;letter-spacing:-.01em}
+  .brand .tag{font-size:12px;color:var(--dim)}
   .actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-  .btn{font-family:var(--sans);font-weight:600;font-size:13px;color:#04231e;background:var(--cyan);border:none;border-radius:9px;padding:9px 15px;cursor:pointer}
-  .btn:hover{filter:brightness(1.08)} .btn:disabled{opacity:.5;cursor:default}
-  .btn.ghost{background:transparent;color:var(--cyan);border:1px solid var(--cyan)}
-  .btn.ghost:hover{background:rgba(51,225,196,.08);filter:none}
+  .btn{font:600 13px var(--sans);color:#fff;background:var(--ink);border:none;border-radius:8px;padding:8px 14px;cursor:pointer}
+  .btn:hover{opacity:.88} .btn:disabled{opacity:.45;cursor:default}
+  .btn.ghost{background:#fff;color:var(--ink);border:1px solid var(--line)}
+  .btn.ghost:hover{border-color:#c9cedb;opacity:1}
+  .gchip{font:500 11.5px var(--sans);color:var(--dim);background:#fff;border:1px solid var(--line);border-radius:999px;padding:6px 11px;cursor:default}
+  .gchip b{color:var(--green)}
+  .replay{font:500 11px var(--mono);color:var(--faint)}
 
-  .summary{display:flex;gap:10px;flex-wrap:wrap;margin:18px 0 20px;align-items:center}
-  .count{font-family:var(--mono);font-size:12.5px;border:1px solid var(--line);border-radius:8px;padding:8px 13px;background:var(--panel)}
-  .count b{font-size:16px}
-  .count.fix b{color:var(--cyan)} .count.esc b{color:var(--amber)} .count.skip b{color:var(--grey)}
-  .count.svc b{color:var(--ink)}
-  .replay{font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--violet);border:1px solid rgba(139,156,255,.3);border-radius:7px;padding:7px 11px}
+  .lede{margin:12px 0 18px;padding-bottom:16px;border-bottom:1px solid var(--line);color:var(--dim);font-size:13.5px}
+  .lede b{color:var(--ink)}
 
-  .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+  .summary{display:flex;flex-wrap:wrap;background:var(--panel);border:1px solid var(--line);border-radius:12px;margin-bottom:12px;overflow:hidden}
+  .stat{flex:1;min-width:108px;padding:14px 18px}
+  .stat+.stat{border-left:1px solid var(--line)}
+  .stat b{display:block;font-size:24px;font-weight:700;letter-spacing:-.02em}
+  .stat span{font-size:10.5px;color:var(--dim);text-transform:uppercase;letter-spacing:.08em}
+  .stat.fix b{color:var(--blue)} .stat.esc b{color:var(--amber)} .stat.skip b{color:var(--grey)}
+
+  .roi{margin:0 2px 24px;font:400 12px var(--mono);color:var(--dim);line-height:1.8}
+  .roi b{color:var(--ink);font-weight:700}
+  .roi .legend{display:block;color:var(--faint);font-size:11px}
+
+  .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
   @media(max-width:860px){.grid{grid-template-columns:1fr}}
-  .svc{background:var(--panel);border:1px solid var(--line);border-radius:13px;overflow:hidden;display:flex;flex-direction:column}
-  .svc.fix{border-color:rgba(51,225,196,.28)} .svc.escalate{border-color:rgba(245,177,60,.26)}
-  .svc .h{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:13px 16px;border-bottom:1px solid var(--line);background:var(--panel2)}
-  .svc .h .n{font-weight:700;font-size:15px}
-  .svc .h .r{font-family:var(--mono);font-size:11px;color:var(--faint)}
+  .svc{background:var(--panel);border:1px solid var(--line);border-radius:12px;display:flex;flex-direction:column}
+  .svc .h{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:14px 18px;border-bottom:1px solid var(--line)}
+  .svc .h .n{font-weight:700;font-size:14.5px}
+  .svc .h .r{font:400 11px var(--mono);color:var(--faint)}
   .pills{display:flex;gap:5px}
-  .pill{font-family:var(--mono);font-size:10px;font-weight:700;padding:3px 8px;border-radius:5px}
-  .pill.fix{color:#04231e;background:var(--cyan)} .pill.escalate{color:#2a1c00;background:var(--amber)} .pill.skip{color:#e9edf4;background:#2b3446}
-  .body{padding:12px 16px 16px;flex:1;display:flex;flex-direction:column;gap:9px}
-  .finding{font-family:var(--mono);font-size:11.5px;color:var(--dim);border-left:2px solid var(--line);padding:4px 0 4px 10px}
-  .finding .pkg{color:var(--ink)}
-  .finding.fix{border-color:var(--cyan)} .finding.escalate{border-color:var(--amber)} .finding.skip{border-color:var(--grey)}
-  .evi{color:var(--faint)}
-  .issuelink,.prlink{font-family:var(--mono);font-size:11.5px;border-radius:8px;padding:8px 11px;margin-top:2px}
-  .issuelink{color:var(--amber);background:rgba(245,177,60,.08);border:1px solid rgba(245,177,60,.22)}
-  .prlink{color:var(--green);background:rgba(73,209,127,.08);border:1px solid rgba(73,209,127,.25);display:none}
-  .prlink.show{display:block} .prlink a{color:var(--green);font-weight:700}
-  .skipnote{color:var(--grey);font-size:11.5px;font-family:var(--mono)}
+  .pill{font:700 10px var(--mono);padding:3px 8px;border-radius:5px}
+  .pill.fix{color:var(--blue);background:var(--bluebg)}
+  .pill.escalate{color:var(--amber);background:var(--amberbg)}
+  .pill.skip{color:var(--grey);background:var(--greybg)}
+  .body{padding:14px 18px 18px;flex:1;display:flex;flex-direction:column;gap:14px}
 
-  .lanelog{background:#0c0f16;border:1px solid var(--line);border-radius:9px;padding:10px 12px;font-family:var(--mono);font-size:11px;line-height:1.6;min-height:64px;max-height:230px;overflow-y:auto}
+  .finding{padding-left:12px;border-left:2px solid var(--line)}
+  .finding.fix{border-color:var(--blue)} .finding.escalate{border-color:var(--amber)} .finding.skip{border-color:#c9cedb}
+  .frow{display:flex;align-items:baseline;gap:8px}
+  .pkg{font-weight:600;font-size:13px}
+  .cve{font:400 11px var(--mono);color:var(--dim);margin-left:auto}
+  .ftag{font:700 9.5px var(--mono);letter-spacing:.05em}
+  .ftag.fix{color:var(--blue)} .ftag.escalate{color:var(--amber)} .ftag.skip{color:var(--grey)}
+  .risk{display:flex;align-items:center;gap:10px;margin:6px 0 7px;font:400 11px var(--mono);color:var(--dim);flex-wrap:wrap}
+  .risk b{color:var(--ink);font-weight:600}
+  .riskbar{flex:1;min-width:56px;height:4px;background:#edeff3;border-radius:2px;overflow:hidden}
+  .riskbar>span{display:block;height:100%;background:var(--blue);border-radius:2px}
+
+  .reach{font:400 11px var(--mono)}
+  .rlabel{display:block;font-weight:700;color:var(--ink);margin-bottom:4px}
+  .rdot{color:var(--red)}
+  .reach.declined .rlabel{color:var(--green)}
+  .reach .evi{color:var(--faint)}
+  .crumbs{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+  .crumb{background:var(--greybg);color:var(--dim);border-radius:5px;padding:2px 7px;font-size:10.5px}
+  .crumb.entry{background:var(--bluebg);color:var(--blue)}
+  .crumb.sink{background:var(--redbg);color:var(--red)}
+  .arr{color:var(--faint)}
+
+  .issuelink{font:500 12px var(--sans);color:var(--amber);background:var(--amberbg);border-radius:8px;padding:9px 12px}
+  .issuelink a{color:var(--amber);font-weight:700}
+  .prlink{display:none;font:500 12px var(--sans);color:var(--green);background:var(--greenbg);border-radius:8px;padding:9px 12px}
+  .prlink.show{display:block} .prlink a{color:var(--green);font-weight:700}
+
+  .lanelog{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:10px 12px;font:400 11px var(--mono);line-height:1.6;min-height:64px;max-height:230px;overflow-y:auto}
   .lanelog .idle{color:var(--faint)}
   .ln{margin-bottom:6px;display:flex;gap:7px;align-items:flex-start;animation:fade .25s ease}
   @keyframes fade{from{opacity:0}to{opacity:1}}
-  .lb{flex-shrink:0;font-size:9px;font-weight:700;padding:1px 6px;border-radius:4px;text-transform:uppercase;margin-top:1px}
-  .lb.plan{background:rgba(139,156,255,.15);color:var(--violet)}
-  .lb.tool{background:rgba(51,225,196,.12);color:var(--cyan)}
-  .lb.status{background:#232a39;color:var(--dim)}
-  .lb.fail{background:rgba(242,85,90,.15);color:var(--red)}
-  .lb.pass{background:rgba(73,209,127,.15);color:var(--green)}
-  .lb.done{background:rgba(73,209,127,.15);color:var(--green)}
+  .lb{flex-shrink:0;font:700 9px var(--mono);padding:1px 6px;border-radius:4px;text-transform:uppercase;margin-top:2px}
+  .lb.plan{background:var(--bluebg);color:var(--blue)}
+  .lb.tool{background:var(--greybg);color:var(--grey)}
+  .lb.status{background:var(--greybg);color:var(--dim)}
+  .lb.fail{background:var(--redbg);color:var(--red)}
+  .lb.pass{background:var(--greenbg);color:var(--green)}
+  .lb.done{background:var(--greenbg);color:var(--green)}
   .tx{color:var(--ink)} .tx .muted{color:var(--dim)}
-  footer{margin-top:22px;padding-top:14px;border-top:1px solid var(--line);color:var(--faint);font-size:12px;font-family:var(--mono)}
+
+  footer{margin-top:26px;padding-top:14px;border-top:1px solid var(--line);color:var(--faint);font-size:11.5px;font-family:var(--mono)}
   footer .mono{color:var(--dim)}
-  .roi{font-family:var(--mono);font-size:12px;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:11px 15px;margin-bottom:18px;line-height:1.6}
-  .roi b{color:var(--cyan)} .roi .dim{color:var(--faint)}
-  .gchip{font-family:var(--mono);font-size:10.5px;color:var(--green);border:1px solid rgba(73,209,127,.28);border-radius:7px;padding:7px 10px;cursor:default}
-  .frow{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
-  .finding .pkg{color:var(--ink);font-weight:600;font-size:13px}
-  .finding .cve{font-family:var(--mono);font-size:11px;color:var(--dim)}
-  .risk{display:flex;align-items:center;gap:10px;margin:7px 0 8px;font-family:var(--mono);font-size:11px;color:var(--dim);flex-wrap:wrap}
-  .risk .rk b{color:var(--ink)}
-  .riskbar{flex:1;min-width:56px;height:5px;background:#1c2432;border-radius:3px;overflow:hidden}
-  .riskbar>span{display:block;height:100%;background:linear-gradient(90deg,var(--cyan),var(--amber))}
-  .reachbox{border-radius:8px;padding:8px 10px}
-  .reachbox.reachable{background:rgba(51,225,196,.06);border:1px solid rgba(51,225,196,.2)}
-  .reachbox.declined{background:rgba(73,209,127,.05);border:1px solid rgba(73,209,127,.2)}
-  .rlabel{display:block;font-family:var(--mono);font-weight:700;font-size:11px;margin-bottom:5px}
-  .reachbox.reachable .rlabel{color:var(--cyan)} .reachbox.declined .rlabel{color:var(--green)}
-  .reachbox .evi{color:var(--faint);font-family:var(--mono);font-size:10.5px}
-  .crumbs{display:flex;align-items:center;gap:5px;flex-wrap:wrap;font-family:var(--mono);font-size:10.5px}
-  .crumb{background:#1c2432;color:var(--dim);border-radius:5px;padding:2px 7px}
-  .crumb.entry{background:rgba(139,156,255,.14);color:var(--violet)}
-  .crumb.sink{background:rgba(242,85,90,.14);color:var(--red)}
-  .arr{color:var(--faint)}
 </style>
 </head>
 <body>
@@ -102,15 +115,17 @@
   <div class="top">
     <div class="brand">
       <div class="mark">◈</div>
-      <div><h1>Sentinel</h1><div class="tag">Fleet Remediation Cockpit</div></div>
+      <div><h1>Sentinel</h1><div class="tag">Fleet remediation cockpit</div></div>
     </div>
     <div class="actions">
-      <button class="btn" id="run-live" style="display:none">☁ Run fleet on cloud</button>
-      <button class="btn ghost" id="run-replay">▶ Play recorded fleet run</button>
-      <span class="gchip" title="beforeShellExecution hook denies: curl|sh · git push --force · rm -rf · .github/workflows edits · .env reads · publish">🛡 change-control hooks enforced</span>
+      <button class="btn" id="run-live" style="display:none">Run fleet on cloud</button>
+      <button class="btn ghost" id="run-replay">Play recorded run</button>
+      <span class="gchip" title="beforeShellExecution hook denies: curl|sh · git push --force · rm -rf · .github/workflows edits · .env reads · publish"><b>✓</b> change-control hooks enforced</span>
       <span class="replay" id="runmeta">idle</span>
     </div>
   </div>
+
+  <div class="lede"><b>Every finding below is scored and routed before any agent runs.</b> Agents open pull requests · humans merge · nothing ships unreviewed.</div>
 
   <div class="summary" id="summary"></div>
   <div class="roi" id="roi"></div>
@@ -130,14 +145,14 @@ const routeOrder={FIX:0,ESCALATE:1,SKIP:2};
 function renderSummary(){
   const s = FLEET.summary;
   el("summary").innerHTML =
-    '<span class="count svc"><b>'+s.services+'</b> services</span>' +
-    '<span class="count fix"><b>'+s.FIX+'</b> FIX</span>' +
-    '<span class="count esc"><b>'+s.ESCALATE+'</b> ESCALATE</span>' +
-    '<span class="count skip"><b>'+s.SKIP+'</b> SKIP</span>' +
-    '<span class="count"><b>'+s.findings+'</b> findings across the CVE fleet</span>';
+    '<div class="stat"><b>'+s.services+'</b><span>services</span></div>' +
+    '<div class="stat fix"><b>'+s.FIX+'</b><span>auto-fix</span></div>' +
+    '<div class="stat esc"><b>'+s.ESCALATE+'</b><span>escalate</span></div>' +
+    '<div class="stat skip"><b>'+s.SKIP+'</b><span>skip</span></div>' +
+    '<div class="stat"><b>'+s.findings+'</b><span>findings</span></div>';
   el("roi").innerHTML =
-    '<b>'+s.FIX+'</b> auto-fixed &nbsp;·&nbsp; <b>'+s.ESCALATE+'</b> escalated to a human &nbsp;·&nbsp; <b>'+s.SKIP+'</b> skipped with evidence &nbsp;·&nbsp; <b>0</b> merged without review'
-    +'<span class="dim">&nbsp;&nbsp;~'+(s.findings*15)+' min of manual triage compressed into one pass — nothing ships unreviewed</span>';
+    s.FIX+' auto-fixed · '+s.ESCALATE+' escalated to a human · '+s.SKIP+' skipped with evidence · <b>0 merged without review</b> · ~'+(s.findings*15)+' min of manual triage compressed into one pass'
+    +'<span class="legend">CVSS = severity if exploited · EPSS = odds of exploitation in the wild · risk = blend of both that picks the route</span>';
   el("foot").innerHTML = esc(RUN.meta.note)
     + ' · guardrails: a beforeShellExecution hook blocks dangerous agent commands (verify with <span class="mono">npm run guardrail:check</span>).';
 }
@@ -155,12 +170,12 @@ function findingLine(f){
       const cls=i===0?"crumb entry":(i===path.length-1?"crumb sink":"crumb");
       return '<span class="'+cls+'">'+label+'</span>';
     }).join('<span class="arr">→</span>');
-    reachHtml='<div class="reachbox reachable"><span class="rlabel">● reachable on a live path</span><div class="crumbs">'+crumbs+'</div></div>';
+    reachHtml='<div class="reach reachable"><span class="rlabel"><span class="rdot">●</span> reachable on a live path</span><div class="crumbs">'+crumbs+'</div></div>';
   } else {
-    reachHtml='<div class="reachbox declined"><span class="rlabel">✓ not reachable — agent declines by design</span><span class="evi">0 import sites across '+f.reachability.scannedFiles+' files · patching an unused package only adds risk</span></div>';
+    reachHtml='<div class="reach declined"><span class="rlabel">✓ not reachable · declined by design</span><span class="evi">0 import sites across '+f.reachability.scannedFiles+' files · patching an unused package only adds risk</span></div>';
   }
   return '<div class="finding '+r+'">'
-    +'<div class="frow"><span class="pkg">'+f.dependency.name+'@'+f.dependency.version+'</span><span class="cve">'+(f.advisory.cve||f.advisory.id)+'</span></div>'
+    +'<div class="frow"><span class="pkg">'+f.dependency.name+'@'+f.dependency.version+'</span><span class="cve">'+(f.advisory.cve||f.advisory.id)+'</span><span class="ftag '+r+'">'+f.route+'</span></div>'
     +'<div class="risk"><span class="rk">CVSS <b>'+cvss+'</b></span><span class="rk">EPSS <b>'+epss+'</b></span><span class="rk">risk <b>'+risk+'</b>/100</span><span class="riskbar"><span style="width:'+risk+'%"></span></span></div>'
     +reachHtml
     +'</div>';
@@ -178,10 +193,10 @@ function svcCard(svc){
     body += '<div class="lanelog" id="lane-'+svc.name+'"><div class="idle">awaiting run…</div></div>';
     body += '<div class="prlink" id="pr-'+svc.name+'"></div>';
   }
-  const esc = findings.find(f=>f.route==="ESCALATE");
-  if (esc) {
+  const escF = findings.find(f=>f.route==="ESCALATE");
+  if (escF) {
     const issue = ART.issues[svc.name];
-    body += '<div class="issuelink">! human review required'+(issue?' → <a href="'+issue+'" target="_blank" rel="noopener noreferrer">open issue ↗</a>':'')+'</div>';
+    body += '<div class="issuelink">Human review required'+(issue?' → <a href="'+issue+'" target="_blank" rel="noopener noreferrer">open issue ↗</a>':'')+'</div>';
   }
   void hasFix;
   return '<div class="svc '+cls+'"><div class="h"><div><div class="n">'+svc.name+'</div>'
@@ -231,8 +246,8 @@ function renderTo(name,e){
       addLn(L,'<span class="lb done">done</span><span class="tx">PR opened</span>');
       const pr = e.prUrl || ART.prs[name];
       const bar=el("pr-"+name);
-      if(bar && pr && pr!=="PENDING"){ bar.className="prlink show"; bar.innerHTML='✅ <a href="'+pr+'" target="_blank" rel="noopener noreferrer">'+pr.replace("https://github.com/","")+' ↗</a>'; }
-      else if(bar){ bar.className="prlink show"; bar.textContent="✅ draft PR opened"; }
+      if(bar && pr && pr!=="PENDING"){ bar.className="prlink show"; bar.innerHTML='✓ <a href="'+pr+'" target="_blank" rel="noopener noreferrer">'+pr.replace("https://github.com/","")+' ↗</a>'; }
+      else if(bar){ bar.className="prlink show"; bar.textContent="✓ draft PR opened"; }
       break;
     }
   }
@@ -261,7 +276,7 @@ function runLive(){
   let doneCount=0; const fixCount=FLEET.services.filter(s=>s.report.findings.some(f=>f.route==="FIX")).length;
   es.onmessage=(m)=>{ let e; try{e=JSON.parse(m.data);}catch(_){return;} if(e.lane) renderTo(e.lane,e); if(e.kind==="done"){ doneCount++; if(doneCount>=fixCount) finishLive(); } };
   es.addEventListener("end",finishLive);
-  es.onerror=()=>{ el("runmeta").textContent="live unavailable — use recorded"; finishLive(); };
+  es.onerror=()=>{ el("runmeta").textContent="live unavailable · use recorded run"; finishLive(); };
 }
 function finishLive(){ if(es){try{es.close();}catch(_){}} if(tick){clearInterval(tick);tick=null;} running=false; }
 
