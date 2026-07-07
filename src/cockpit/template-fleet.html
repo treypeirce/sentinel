@@ -104,21 +104,24 @@
   .flow.show{display:block}
   .btn.ghost.on{border-color:var(--ink)}
   .fsec{font:700 10.5px var(--mono);color:var(--faint);text-transform:uppercase;letter-spacing:.1em;margin:20px 0 10px}
-  .pipe{display:flex;align-items:stretch;gap:8px;flex-wrap:wrap}
-  .node{background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:9px 13px;display:flex;flex-direction:column;gap:2px;justify-content:center}
-  .node .t{font:600 12.5px var(--sans);color:var(--ink)}
-  .node .s{font:400 10px var(--mono);color:var(--faint)}
-  .node.route{border-color:#c9cedb}
-  .node.route .t{font-weight:700}
-  .pipe .arr{font-size:14px;align-self:center}
-  .api{font-style:normal;font:700 8.5px var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--blue);background:var(--bluebg);border-radius:4px;padding:1px 5px;margin-left:3px}
-  .routes{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
-  @media(max-width:860px){.routes{grid-template-columns:1fr}}
-  .rcard{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:13px 15px}
+  .flowgrid{display:grid;grid-template-columns:1fr 1.08fr;gap:0 26px;align-items:start}
+  @media(max-width:860px){.flowgrid{grid-template-columns:1fr}}
+  .fpanel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:22px 24px}
+  .steps .step{position:relative;padding:0 0 22px 38px}
+  .steps .step:last-child{padding-bottom:0}
+  .steps .step:not(:last-child)::after{content:"";position:absolute;left:11.5px;top:27px;bottom:5px;width:1px;background:var(--line)}
+  .step .num{position:absolute;left:0;top:0;width:24px;height:24px;border-radius:50%;background:var(--bg);border:1px solid var(--line);display:grid;place-items:center;font:700 10.5px var(--mono);color:var(--dim)}
+  .step.last .num{background:var(--ink);border-color:var(--ink);color:#fff}
+  .step .t{display:block;font:600 13px var(--sans);color:var(--ink);line-height:1.4}
+  .step .s{display:block;font:400 10.5px var(--mono);color:var(--faint);margin-top:3px;line-height:1.6}
+  .rfix{color:var(--blue)} .resc{color:var(--amber)} .rskip{color:var(--grey)}
+  .api{font-style:normal;font:700 8.5px var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--blue);background:var(--bluebg);border-radius:4px;padding:1px 5px;margin-left:3px;white-space:nowrap}
+  .acts{display:flex;flex-direction:column;gap:12px}
+  .rcard{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:15px 18px}
   .rcard .pill{display:inline-block;margin-bottom:7px}
   .rn{font:500 10.5px var(--mono);color:var(--faint);margin-left:7px}
   .rcard .l{font:400 11.5px var(--mono);color:var(--dim);padding:2.5px 0}
-  .fnote{margin-top:16px;font:400 11px var(--mono);color:var(--faint)}
+  .fnote{margin-top:18px;font:400 11px var(--mono);color:var(--faint)}
 
   footer{margin-top:26px;padding-top:14px;border-top:1px solid var(--line);color:var(--faint);font-size:11.5px;font-family:var(--mono)}
   footer .mono{color:var(--dim)}
@@ -144,33 +147,39 @@
   <div class="grid" id="grid"></div>
 
   <div class="flow" id="flow">
-    <div class="fsec">1 · Decide · deterministic pipeline · runs before any agent</div>
-    <div class="pipe">
-      <span class="node"><span class="t">Scan dependencies</span><span class="s">package.json · every service</span></span><span class="arr">→</span>
-      <span class="node"><span class="t">Match advisories</span><span class="s">OSV.dev <em class="api">live api</em></span></span><span class="arr">→</span>
-      <span class="node"><span class="t">Score risk</span><span class="s">CVSS v3.1 calc · EPSS via FIRST.org <em class="api">live api</em></span></span><span class="arr">→</span>
-      <span class="node"><span class="t">Walk reachability</span><span class="s">import graph from src/index.ts</span></span><span class="arr">→</span>
-      <span class="node"><span class="t">Apply policy</span><span class="s">money-path + fix-available rules</span></span><span class="arr">→</span>
-      <span class="node route"><span class="t">Route</span><span class="s">FIX · SKIP · ESCALATE</span></span>
-    </div>
-    <div class="fsec">2 · Act · per route · parallel where allowed</div>
-    <div class="routes">
-      <div class="rcard"><span class="pill fix">FIX</span><span class="rn" id="fcnt-fix"></span>
-        <div class="l">Cursor SDK dispatches a cloud agent <em class="api">api</em></div>
-        <div class="l">isolated VM per service · clones repo</div>
-        <div class="l">failing test → patch → tests green</div>
-        <div class="l">draft PR via GitHub <em class="api">api</em> · human merges</div>
-        <div class="l">activity streams live into this cockpit</div>
+    <div class="flowgrid">
+      <div>
+        <div class="fsec">1 · Decide · before any agent runs</div>
+        <div class="fpanel steps">
+          <div class="step"><span class="num">1</span><span class="t">Scan dependencies</span><span class="s">package.json · every service in the fleet</span></div>
+          <div class="step"><span class="num">2</span><span class="t">Match known advisories</span><span class="s">OSV.dev <em class="api">live api</em></span></div>
+          <div class="step"><span class="num">3</span><span class="t">Score the risk</span><span class="s">CVSS v3.1 severity · EPSS exploit odds via FIRST.org <em class="api">live api</em></span></div>
+          <div class="step"><span class="num">4</span><span class="t">Walk reachability</span><span class="s">import graph from src/index.ts · call path recorded</span></div>
+          <div class="step"><span class="num">5</span><span class="t">Apply policy</span><span class="s">money-path + fix-available rules</span></div>
+          <div class="step last"><span class="num">6</span><span class="t">Route</span><span class="s"><b class="rfix">FIX</b> · <b class="rskip">SKIP</b> · <b class="resc">ESCALATE</b></span></div>
+        </div>
       </div>
-      <div class="rcard"><span class="pill escalate">ESCALATE</span><span class="rn" id="fcnt-esc"></span>
-        <div class="l">policy match · money-movement path</div>
-        <div class="l">review issue filed via GitHub <em class="api">api</em></div>
-        <div class="l">no agent allowed near the code</div>
-      </div>
-      <div class="rcard"><span class="pill skip">SKIP</span><span class="rn" id="fcnt-skip"></span>
-        <div class="l">0 import sites · unreachable from entrypoint</div>
-        <div class="l">evidence recorded on the finding</div>
-        <div class="l">no agent · no PR · zero churn</div>
+      <div>
+        <div class="fsec">2 · Act · per route</div>
+        <div class="acts">
+          <div class="rcard"><span class="pill fix">FIX</span><span class="rn" id="fcnt-fix"></span>
+            <div class="l">Cursor SDK dispatches a cloud agent <em class="api">api</em></div>
+            <div class="l">isolated VM per service · clones the repo</div>
+            <div class="l">failing test → patch → tests green</div>
+            <div class="l">draft PR via GitHub <em class="api">api</em> · human merges</div>
+            <div class="l">activity streams live into this cockpit</div>
+          </div>
+          <div class="rcard"><span class="pill escalate">ESCALATE</span><span class="rn" id="fcnt-esc"></span>
+            <div class="l">policy match · money-movement path</div>
+            <div class="l">review issue filed via GitHub <em class="api">api</em></div>
+            <div class="l">no agent allowed near the code</div>
+          </div>
+          <div class="rcard"><span class="pill skip">SKIP</span><span class="rn" id="fcnt-skip"></span>
+            <div class="l">0 import sites · unreachable from entrypoint</div>
+            <div class="l">evidence recorded on the finding</div>
+            <div class="l">no agent · no PR · zero churn</div>
+          </div>
+        </div>
       </div>
     </div>
     <div class="fnote">guardrail: a beforeShellExecution hook screens every agent command · deny-capable · nothing merges without a human</div>
