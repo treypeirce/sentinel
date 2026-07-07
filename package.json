@@ -1,0 +1,15 @@
+{
+  "name": "sentinel",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Sentinel — governed vulnerability triage engine (deterministic scorer + reachability gate).",
+  "engines": {
+    "node": ">=23.6"
+  },
+  "scripts": {
+    "triage": "node src/cli.ts",
+    "triage:refresh": "node src/cli.ts --refresh",
+    "test": "node --test test/cvss.test.ts test/reachability.test.ts test/policy.test.ts"
+  }
+}
