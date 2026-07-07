@@ -73,6 +73,28 @@
   .lb.done{background:rgba(73,209,127,.15);color:var(--green)}
   .tx{color:var(--ink)} .tx .muted{color:var(--dim)}
   footer{margin-top:22px;padding-top:14px;border-top:1px solid var(--line);color:var(--faint);font-size:12px;font-family:var(--mono)}
+  footer .mono{color:var(--dim)}
+  .roi{font-family:var(--mono);font-size:12px;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:11px 15px;margin-bottom:18px;line-height:1.6}
+  .roi b{color:var(--cyan)} .roi .dim{color:var(--faint)}
+  .gchip{font-family:var(--mono);font-size:10.5px;color:var(--green);border:1px solid rgba(73,209,127,.28);border-radius:7px;padding:7px 10px;cursor:default}
+  .frow{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+  .finding .pkg{color:var(--ink);font-weight:600;font-size:13px}
+  .finding .cve{font-family:var(--mono);font-size:11px;color:var(--dim)}
+  .risk{display:flex;align-items:center;gap:10px;margin:7px 0 8px;font-family:var(--mono);font-size:11px;color:var(--dim);flex-wrap:wrap}
+  .risk .rk b{color:var(--ink)}
+  .riskbar{flex:1;min-width:56px;height:5px;background:#1c2432;border-radius:3px;overflow:hidden}
+  .riskbar>span{display:block;height:100%;background:linear-gradient(90deg,var(--cyan),var(--amber))}
+  .reachbox{border-radius:8px;padding:8px 10px}
+  .reachbox.reachable{background:rgba(51,225,196,.06);border:1px solid rgba(51,225,196,.2)}
+  .reachbox.declined{background:rgba(73,209,127,.05);border:1px solid rgba(73,209,127,.2)}
+  .rlabel{display:block;font-family:var(--mono);font-weight:700;font-size:11px;margin-bottom:5px}
+  .reachbox.reachable .rlabel{color:var(--cyan)} .reachbox.declined .rlabel{color:var(--green)}
+  .reachbox .evi{color:var(--faint);font-family:var(--mono);font-size:10.5px}
+  .crumbs{display:flex;align-items:center;gap:5px;flex-wrap:wrap;font-family:var(--mono);font-size:10.5px}
+  .crumb{background:#1c2432;color:var(--dim);border-radius:5px;padding:2px 7px}
+  .crumb.entry{background:rgba(139,156,255,.14);color:var(--violet)}
+  .crumb.sink{background:rgba(242,85,90,.14);color:var(--red)}
+  .arr{color:var(--faint)}
 </style>
 </head>
 <body>
@@ -85,11 +107,13 @@
     <div class="actions">
       <button class="btn" id="run-live" style="display:none">☁ Run fleet on cloud</button>
       <button class="btn ghost" id="run-replay">▶ Play recorded fleet run</button>
+      <span class="gchip" title="beforeShellExecution hook denies: curl|sh · git push --force · rm -rf · .github/workflows edits · .env reads · publish">🛡 change-control hooks enforced</span>
       <span class="replay" id="runmeta">idle</span>
     </div>
   </div>
 
   <div class="summary" id="summary"></div>
+  <div class="roi" id="roi"></div>
   <div class="grid" id="grid"></div>
   <footer id="foot"></footer>
 </div>
@@ -405,16 +429,35 @@ function renderSummary(){
     '<span class="count esc"><b>'+s.ESCALATE+'</b> ESCALATE</span>' +
     '<span class="count skip"><b>'+s.SKIP+'</b> SKIP</span>' +
     '<span class="count"><b>'+s.findings+'</b> findings across the CVE fleet</span>';
-  el("foot").textContent = RUN.meta.note + "  ·  the same CVE routes three ways across the fleet.";
+  el("roi").innerHTML =
+    '<b>'+s.FIX+'</b> auto-fixed &nbsp;·&nbsp; <b>'+s.ESCALATE+'</b> escalated to a human &nbsp;·&nbsp; <b>'+s.SKIP+'</b> skipped with evidence &nbsp;·&nbsp; <b>0</b> merged without review'
+    +'<span class="dim">&nbsp;&nbsp;~'+(s.findings*15)+' min of manual triage compressed into one pass — nothing ships unreviewed</span>';
+  el("foot").innerHTML = esc(RUN.meta.note)
+    + ' · guardrails: a beforeShellExecution hook blocks dangerous agent commands (verify with <span class="mono">npm run guardrail:check</span>).';
 }
 
 function findingLine(f){
   const r=f.route.toLowerCase();
-  const reach = f.reachability.reachable
-    ? '<span class="evi">reachable · '+(f.reachability.reachablePath? f.reachability.reachablePath.join(" → ") : "on a live path")+'</span>'
-    : '<span class="evi">unreachable · 0 import sites</span>';
-  return '<div class="finding '+r+'"><span class="pkg">'+f.dependency.name+'@'+f.dependency.version+'</span> · '
-    +(f.advisory.cve||f.advisory.id)+' · CVSS '+(f.advisory.cvssScore!=null?f.advisory.cvssScore.toFixed(1):'?')+'<br>'+reach+'</div>';
+  const cvss=f.advisory.cvssScore!=null?f.advisory.cvssScore.toFixed(1):"?";
+  const epss=f.epss!=null?(f.epss*100).toFixed(f.epss<0.01?2:1)+"%":"n/a";
+  const risk=f.riskScore;
+  let reachHtml;
+  if(f.reachability.reachable && f.reachability.reachablePath){
+    const path=f.reachability.reachablePath;
+    const crumbs=path.map((p,i)=>{
+      const label=esc(p.split("/").pop());
+      const cls=i===0?"crumb entry":(i===path.length-1?"crumb sink":"crumb");
+      return '<span class="'+cls+'">'+label+'</span>';
+    }).join('<span class="arr">→</span>');
+    reachHtml='<div class="reachbox reachable"><span class="rlabel">● reachable on a live path</span><div class="crumbs">'+crumbs+'</div></div>';
+  } else {
+    reachHtml='<div class="reachbox declined"><span class="rlabel">✓ not reachable — agent declines by design</span><span class="evi">0 import sites across '+f.reachability.scannedFiles+' files · patching an unused package only adds risk</span></div>';
+  }
+  return '<div class="finding '+r+'">'
+    +'<div class="frow"><span class="pkg">'+f.dependency.name+'@'+f.dependency.version+'</span><span class="cve">'+(f.advisory.cve||f.advisory.id)+'</span></div>'
+    +'<div class="risk"><span class="rk">CVSS <b>'+cvss+'</b></span><span class="rk">EPSS <b>'+epss+'</b></span><span class="rk">risk <b>'+risk+'</b>/100</span><span class="riskbar"><span style="width:'+risk+'%"></span></span></div>'
+    +reachHtml
+    +'</div>';
 }
 
 function svcCard(svc){
@@ -434,9 +477,7 @@ function svcCard(svc){
     const issue = ART.issues[svc.name];
     body += '<div class="issuelink">! human review required'+(issue?' → <a href="'+issue+'" target="_blank" rel="noopener noreferrer">open issue ↗</a>':'')+'</div>';
   }
-  if (!hasFix && !esc) {
-    body += '<div class="skipnote">· no action — unreachable, patching adds risk without reducing exposure</div>';
-  }
+  void hasFix;
   return '<div class="svc '+cls+'"><div class="h"><div><div class="n">'+svc.name+'</div>'
     +'<div class="r">'+svc.repoUrl.replace("https://github.com/","")+'</div></div><div class="pills">'+pills+'</div></div>'
     +'<div class="body">'+body+'</div></div>';
