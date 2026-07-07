@@ -24,7 +24,7 @@
   .wrap{max-width:1240px;margin:0 auto;padding:26px 5vw 56px}
   a{color:var(--blue);text-decoration:none} a:hover{text-decoration:underline}
 
-  .top{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px}
+  .top{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px;padding-bottom:16px;border-bottom:1px solid var(--line)}
   .brand{display:flex;align-items:center;gap:12px}
   .mark{width:30px;height:30px;border-radius:8px;background:var(--ink);color:#fff;display:grid;place-items:center;font-size:15px}
   .brand h1{font-size:17px;font-weight:700;letter-spacing:-.01em}
@@ -38,19 +38,12 @@
   .gchip b{color:var(--green)}
   .replay{font:500 11px var(--mono);color:var(--faint)}
 
-  .lede{margin:12px 0 18px;padding-bottom:16px;border-bottom:1px solid var(--line);color:var(--dim);font-size:13.5px}
-  .lede b{color:var(--ink)}
-
-  .summary{display:flex;flex-wrap:wrap;background:var(--panel);border:1px solid var(--line);border-radius:12px;margin-bottom:12px;overflow:hidden}
+  .summary{display:flex;flex-wrap:wrap;background:var(--panel);border:1px solid var(--line);border-radius:12px;margin:18px 0 20px;overflow:hidden}
   .stat{flex:1;min-width:108px;padding:14px 18px}
   .stat+.stat{border-left:1px solid var(--line)}
   .stat b{display:block;font-size:24px;font-weight:700;letter-spacing:-.02em}
   .stat span{font-size:10.5px;color:var(--dim);text-transform:uppercase;letter-spacing:.08em}
   .stat.fix b{color:var(--blue)} .stat.esc b{color:var(--amber)} .stat.skip b{color:var(--grey)}
-
-  .roi{margin:0 2px 24px;font:400 12px var(--mono);color:var(--dim);line-height:1.8}
-  .roi b{color:var(--ink);font-weight:700}
-  .roi .legend{display:block;color:var(--faint);font-size:11px}
 
   .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
   @media(max-width:860px){.grid{grid-template-columns:1fr}}
@@ -125,10 +118,7 @@
     </div>
   </div>
 
-  <div class="lede"><b>Every finding below is scored and routed before any agent runs.</b> Agents open pull requests · humans merge · nothing ships unreviewed.</div>
-
   <div class="summary" id="summary"></div>
-  <div class="roi" id="roi"></div>
   <div class="grid" id="grid"></div>
   <footer id="foot"></footer>
 </div>
@@ -444,11 +434,8 @@ function renderSummary(){
     '<div class="stat esc"><b>'+s.ESCALATE+'</b><span>escalate</span></div>' +
     '<div class="stat skip"><b>'+s.SKIP+'</b><span>skip</span></div>' +
     '<div class="stat"><b>'+s.findings+'</b><span>findings</span></div>';
-  el("roi").innerHTML =
-    s.FIX+' auto-fixed · '+s.ESCALATE+' escalated to a human · '+s.SKIP+' skipped with evidence · <b>0 merged without review</b> · ~'+(s.findings*15)+' min of manual triage compressed into one pass'
-    +'<span class="legend">CVSS = severity if exploited · EPSS = odds of exploitation in the wild · risk = blend of both that picks the route</span>';
-  el("foot").innerHTML = esc(RUN.meta.note)
-    + ' · guardrails: a beforeShellExecution hook blocks dangerous agent commands (verify with <span class="mono">npm run guardrail:check</span>).';
+  el("foot").innerHTML = 'recorded run · '+esc(RUN.meta.model)
+    + ' · guardrail hooks active · verify: <span class="mono">npm run guardrail:check</span>';
 }
 
 function findingLine(f){
@@ -464,13 +451,13 @@ function findingLine(f){
       const cls=i===0?"crumb entry":(i===path.length-1?"crumb sink":"crumb");
       return '<span class="'+cls+'">'+label+'</span>';
     }).join('<span class="arr">→</span>');
-    reachHtml='<div class="reach reachable"><span class="rlabel"><span class="rdot">●</span> reachable on a live path</span><div class="crumbs">'+crumbs+'</div></div>';
+    reachHtml='<div class="reach reachable"><span class="rlabel"><span class="rdot">●</span> Reachable</span><div class="crumbs">'+crumbs+'</div></div>';
   } else {
-    reachHtml='<div class="reach declined"><span class="rlabel">✓ not reachable · declined by design</span><span class="evi">0 import sites across '+f.reachability.scannedFiles+' files · patching an unused package only adds risk</span></div>';
+    reachHtml='<div class="reach declined"><span class="rlabel">✓ Not reachable</span><span class="evi">0 imports · '+f.reachability.scannedFiles+' files scanned</span></div>';
   }
   return '<div class="finding '+r+'">'
     +'<div class="frow"><span class="pkg">'+f.dependency.name+'@'+f.dependency.version+'</span><span class="cve">'+(f.advisory.cve||f.advisory.id)+'</span><span class="ftag '+r+'">'+f.route+'</span></div>'
-    +'<div class="risk"><span class="rk">CVSS <b>'+cvss+'</b></span><span class="rk">EPSS <b>'+epss+'</b></span><span class="rk">risk <b>'+risk+'</b>/100</span><span class="riskbar"><span style="width:'+risk+'%"></span></span></div>'
+    +'<div class="risk"><span class="rk" title="CVSS · severity if exploited (0-10)">CVSS <b>'+cvss+'</b></span><span class="rk" title="EPSS · probability of exploitation in the wild">EPSS <b>'+epss+'</b></span><span class="rk" title="Blended score that decides the route">risk <b>'+risk+'</b>/100</span><span class="riskbar"><span style="width:'+risk+'%"></span></span></div>'
     +reachHtml
     +'</div>';
 }
