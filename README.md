@@ -128,6 +128,33 @@ Cursor account so the cloud agent can clone it and open a PR. Local agents run
 tools without an approval prompt by default, so the target repo's
 `.cursor/hooks.json` is what enforces guardrails during a run.
 
+## Cockpit + replay seatbelt (Phases 5 & 6)
+
+The cockpit is the visual layer: it renders the triage queue (Fix / Skip /
+Escalate with evidence) and streams the agent's remediation run as a live
+activity feed — plan, tool calls, the failing-then-passing test, a guardrail
+denial firing, the diff, and the PR link.
+
+```bash
+npm run triage           # produce queue.json
+npm run cockpit:build    # bake queue + recorded run into public/cockpit.html
+npm run cockpit          # serve http://localhost:4317  (also exposes /api/stream SSE)
+```
+
+**Why it's built this way:** `public/cockpit.html` is fully self-contained — it
+embeds the real queue and a recorded remediation run and animates the replay
+client-side, so it works with the network unplugged and needs neither a server
+nor the SDK. That is the **replay seatbelt**: if a live run stalls on stage, the
+cockpit still tells the whole story deterministically.
+
+- `src/cockpit/template.html` — the UI (renders queue + streams the run).
+- `src/cockpit/mock-run.json` — the recorded run. Swap for a real capture once
+  the SDK key is entitled (add a `--record` pass to `runLocal`); the cockpit
+  replays whatever is here, live-captured or authored.
+- `src/cockpit/build.mjs` — bakes data into the self-contained page.
+- `src/cockpit/server.ts` — serves the cockpit + an SSE `/api/stream` for the
+  future live path.
+
 ## Layout
 
 ```

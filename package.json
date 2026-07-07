@@ -13,6 +13,8 @@
     "fix:local": "node src/agent/runLocal.ts",
     "fix:cloud": "node src/agent/kickoffCloud.ts",
     "verify:key": "node src/agent/verifyKey.mjs",
+    "cockpit:build": "node src/cockpit/build.mjs",
+    "cockpit": "node src/cockpit/server.ts",
     "typecheck": "tsc --noEmit",
     "test": "node --test test/cvss.test.ts test/reachability.test.ts test/policy.test.ts"
   },
