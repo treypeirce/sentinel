@@ -1,6 +1,7 @@
 /** ANSI report renderer for the triage queue. Legible on a projector. */
 import type { Finding } from "./types.ts";
 import type { TriageReport } from "./triage.ts";
+import type { FleetReport } from "./fleet.ts";
 
 const c = {
   reset: "\x1b[0m",
@@ -91,6 +92,35 @@ export function render(report: TriageReport): string {
   L.push(
     `  ${c.bold}Queue${c.reset}  ${c.cyan}${counts.FIX ?? 0} FIX${c.reset}   ${c.yellow}${counts.ESCALATE ?? 0} ESCALATE${c.reset}   ${c.dim}${counts.SKIP ?? 0} SKIP${c.reset}   ${c.dim}(${report.findings.length} findings)${c.reset}`,
   );
+  L.push("");
+  return L.join("\n");
+}
+
+/** Portfolio renderer for a multi-service fleet scan. */
+export function renderFleet(report: FleetReport): string {
+  const L: string[] = [];
+  L.push("");
+  L.push(`  ${c.bold}${c.white}SENTINEL${c.reset} ${c.dim}· fleet triage across ${report.summary.services} services${c.reset}`);
+  L.push(
+    `  ${c.cyan}${report.summary.FIX} FIX${c.reset}   ${c.yellow}${report.summary.ESCALATE} ESCALATE${c.reset}   ${c.dim}${report.summary.SKIP} SKIP${c.reset}   ${c.dim}(${report.summary.findings} findings)${c.reset}`,
+  );
+  L.push(`  ${c.bgline}${"─".repeat(78)}${c.reset}`);
+
+  for (const s of report.services) {
+    L.push("");
+    L.push(`  ${c.bold}${c.white}▸ ${s.name}${c.reset}  ${c.dim}${s.repoUrl.replace("https://github.com/", "")}${c.reset}`);
+    if (s.report.findings.length === 0) {
+      L.push(`     ${c.dim}no advisories${c.reset}`);
+      continue;
+    }
+    for (const f of s.report.findings) {
+      const route = `${routeStyle[f.route]}${c.bold}${routeGlyph[f.route]}${c.reset}`;
+      const reach = f.reachability.reachable ? `${c.green}reachable${c.reset}` : `${c.dim}unreachable${c.reset}`;
+      L.push(
+        `     ${route}  ${pad(f.dependency.name + "@" + f.dependency.version, 20)} ${pad(f.advisory.cve ?? f.advisory.id, 18)} ${pad("CVSS " + (f.advisory.cvssScore?.toFixed(1) ?? "?"), 10)} ${reach}`,
+      );
+    }
+  }
   L.push("");
   return L.join("\n");
 }

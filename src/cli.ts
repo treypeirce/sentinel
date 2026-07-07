@@ -10,7 +10,8 @@ import { writeFileSync } from "node:fs";
 import { join, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { triage } from "./triage.ts";
-import { render } from "./render.ts";
+import { triageFleet } from "./fleet.ts";
+import { render, renderFleet } from "./render.ts";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..");
@@ -29,6 +30,17 @@ async function main() {
     ? resolve(process.cwd(), targetArg)
     : resolve(ROOT, "..", "acme-payments");
   const refresh = has("--refresh");
+
+  if (has("--fleet")) {
+    const cfg = join(ROOT, "fleet.json");
+    const fleet = await triageFleet(cfg, ROOT, refresh);
+    if (has("--json")) process.stdout.write(JSON.stringify(fleet, null, 2) + "\n");
+    else process.stdout.write(renderFleet(fleet));
+    const out = join(ROOT, "fleet-queue.json");
+    writeFileSync(out, JSON.stringify(fleet, null, 2));
+    if (!has("--json")) process.stdout.write(`  \x1b[90mfleet queue written → ${out}\x1b[0m\n\n`);
+    return;
+  }
 
   const report = await triage(target, refresh);
 

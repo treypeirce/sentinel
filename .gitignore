@@ -1,4 +1,5 @@
 node_modules/
 queue.json
+fleet-queue.json
 *.log
 .DS_Store

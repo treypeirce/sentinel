@@ -19,8 +19,8 @@ const onPath = (sites: string[], re: RegExp) => sites.some((f) => re.test(f));
 export const sensitiveRules: SensitiveRule[] = [
   {
     name: "money-movement",
-    description: "code on the settlement / payment-signing path (src/payments/**)",
-    match: (sites) => onPath(sites, /(^|\/)src\/payments\//),
+    description: "code on the settlement / money-movement path (src/payments, src/ledger, src/settlement)",
+    match: (sites) => onPath(sites, /(^|\/)src\/(payments|ledger|settlement)\//),
   },
   // Add rules live during the demo, e.g.:
   // {

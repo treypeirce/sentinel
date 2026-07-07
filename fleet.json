@@ -1,0 +1,8 @@
+{
+  "services": [
+    { "name": "acme-payments", "path": "../acme-payments", "repoUrl": "https://github.com/treypeirce/acme-payments" },
+    { "name": "acme-billing", "path": "../acme-billing", "repoUrl": "https://github.com/treypeirce/acme-billing" },
+    { "name": "acme-notifications", "path": "../acme-notifications", "repoUrl": "https://github.com/treypeirce/acme-notifications" },
+    { "name": "acme-ledger", "path": "../acme-ledger", "repoUrl": "https://github.com/treypeirce/acme-ledger" }
+  ]
+}
