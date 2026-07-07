@@ -1,0 +1,38 @@
+{
+  "meta": {
+    "mode": "recorded",
+    "model": "composer-2.5",
+    "note": "Recorded parallel fleet remediation: two FIX lanes (acme-payments, acme-billing) fixed by cloud agents at the same time.",
+    "artifacts": {
+      "prs": {
+        "acme-payments": "https://github.com/treypeirce/acme-payments/pull/1",
+        "acme-billing": "https://github.com/treypeirce/acme-billing/pull/1"
+      },
+      "issues": {
+        "acme-ledger": "https://github.com/treypeirce/acme-ledger/issues/1"
+      }
+    }
+  },
+  "timeline": [
+    { "lane": "acme-payments", "kind": "status", "text": "Cloud agent dispatched · composer-2.5", "delay": 300 },
+    { "lane": "acme-billing", "kind": "status", "text": "Cloud agent dispatched · composer-2.5", "delay": 350 },
+    { "lane": "acme-payments", "kind": "plan", "text": "Reproduce with a failing test, upgrade jsonwebtoken to 9, restrict verify() to HS256, prove green.", "delay": 700 },
+    { "lane": "acme-billing", "kind": "plan", "text": "Reproduce with a failing test, upgrade jsonwebtoken to 9, restrict verify() to HS256, prove green.", "delay": 800 },
+    { "lane": "acme-payments", "kind": "tool", "tool": "read", "detail": "src/middleware/auth.ts", "delay": 600 },
+    { "lane": "acme-billing", "kind": "tool", "tool": "read", "detail": "src/middleware/auth.ts", "delay": 650 },
+    { "lane": "acme-payments", "kind": "tool", "tool": "write", "detail": "test/auth.security.test.ts (forge HS384)", "delay": 700 },
+    { "lane": "acme-billing", "kind": "tool", "tool": "write", "detail": "test/auth.security.test.ts (forge HS384)", "delay": 750 },
+    { "lane": "acme-payments", "kind": "tool", "tool": "shell", "detail": "npm test", "delay": 700 },
+    { "lane": "acme-billing", "kind": "tool", "tool": "shell", "detail": "npm test", "delay": 750 },
+    { "lane": "acme-payments", "kind": "test", "status": "fail", "summary": "1 failing — HS384-forged token accepted (201). Reproduced.", "delay": 800 },
+    { "lane": "acme-billing", "kind": "test", "status": "fail", "summary": "1 failing — HS384-forged token accepted (201). Reproduced.", "delay": 850 },
+    { "lane": "acme-payments", "kind": "tool", "tool": "edit", "detail": "package.json + src/middleware/auth.ts (algorithms: ['HS256'])", "delay": 700 },
+    { "lane": "acme-billing", "kind": "tool", "tool": "edit", "detail": "package.json + src/middleware/auth.ts (algorithms: ['HS256'])", "delay": 750 },
+    { "lane": "acme-payments", "kind": "tool", "tool": "shell", "detail": "npm test", "delay": 700 },
+    { "lane": "acme-billing", "kind": "tool", "tool": "shell", "detail": "npm test", "delay": 750 },
+    { "lane": "acme-payments", "kind": "test", "status": "pass", "summary": "13 passing — forged token now 401.", "delay": 800 },
+    { "lane": "acme-billing", "kind": "test", "status": "pass", "summary": "4 passing — forged token now 401.", "delay": 850 },
+    { "lane": "acme-payments", "kind": "done", "status": "complete", "delay": 500 },
+    { "lane": "acme-billing", "kind": "done", "status": "complete", "delay": 500 }
+  ]
+}

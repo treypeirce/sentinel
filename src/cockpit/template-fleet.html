@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Sentinel · Fleet Remediation Cockpit</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --bg:#0a0c10; --panel:#111520; --panel2:#161b28; --line:#232a39;
+    --ink:#e9edf4; --dim:#8b98ac; --faint:#5c6880;
+    --cyan:#33e1c4; --amber:#f5b13c; --grey:#7c8aa0; --red:#f2555a; --green:#49d17f; --violet:#8b9cff;
+    --mono:'JetBrains Mono',ui-monospace,monospace; --sans:'Inter',system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.5;-webkit-font-smoothing:antialiased;
+    background-image:radial-gradient(circle at 88% -6%,rgba(51,225,196,.08),transparent 44%),radial-gradient(circle at 4% 108%,rgba(139,156,255,.06),transparent 42%);min-height:100vh}
+  .mono{font-family:var(--mono)}
+  .wrap{max-width:1280px;margin:0 auto;padding:22px 5vw 48px}
+  a{color:var(--cyan);text-decoration:none}
+
+  .top{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px;padding-bottom:16px;border-bottom:1px solid var(--line)}
+  .brand{display:flex;align-items:center;gap:13px}
+  .mark{width:38px;height:38px;border-radius:10px;background:linear-gradient(150deg,var(--cyan),#1b9e8c);display:grid;place-items:center;color:#04231e;font-weight:800;font-size:20px;box-shadow:0 6px 20px rgba(51,225,196,.2)}
+  .brand h1{font-size:18px;font-weight:700;letter-spacing:-.01em}
+  .brand .tag{font-family:var(--mono);font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--faint)}
+  .actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .btn{font-family:var(--sans);font-weight:600;font-size:13px;color:#04231e;background:var(--cyan);border:none;border-radius:9px;padding:9px 15px;cursor:pointer}
+  .btn:hover{filter:brightness(1.08)} .btn:disabled{opacity:.5;cursor:default}
+  .btn.ghost{background:transparent;color:var(--cyan);border:1px solid var(--cyan)}
+  .btn.ghost:hover{background:rgba(51,225,196,.08);filter:none}
+
+  .summary{display:flex;gap:10px;flex-wrap:wrap;margin:18px 0 20px;align-items:center}
+  .count{font-family:var(--mono);font-size:12.5px;border:1px solid var(--line);border-radius:8px;padding:8px 13px;background:var(--panel)}
+  .count b{font-size:16px}
+  .count.fix b{color:var(--cyan)} .count.esc b{color:var(--amber)} .count.skip b{color:var(--grey)}
+  .count.svc b{color:var(--ink)}
+  .replay{font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--violet);border:1px solid rgba(139,156,255,.3);border-radius:7px;padding:7px 11px}
+
+  .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+  @media(max-width:860px){.grid{grid-template-columns:1fr}}
+  .svc{background:var(--panel);border:1px solid var(--line);border-radius:13px;overflow:hidden;display:flex;flex-direction:column}
+  .svc.fix{border-color:rgba(51,225,196,.28)} .svc.escalate{border-color:rgba(245,177,60,.26)}
+  .svc .h{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:13px 16px;border-bottom:1px solid var(--line);background:var(--panel2)}
+  .svc .h .n{font-weight:700;font-size:15px}
+  .svc .h .r{font-family:var(--mono);font-size:11px;color:var(--faint)}
+  .pills{display:flex;gap:5px}
+  .pill{font-family:var(--mono);font-size:10px;font-weight:700;padding:3px 8px;border-radius:5px}
+  .pill.fix{color:#04231e;background:var(--cyan)} .pill.escalate{color:#2a1c00;background:var(--amber)} .pill.skip{color:#e9edf4;background:#2b3446}
+  .body{padding:12px 16px 16px;flex:1;display:flex;flex-direction:column;gap:9px}
+  .finding{font-family:var(--mono);font-size:11.5px;color:var(--dim);border-left:2px solid var(--line);padding:4px 0 4px 10px}
+  .finding .pkg{color:var(--ink)}
+  .finding.fix{border-color:var(--cyan)} .finding.escalate{border-color:var(--amber)} .finding.skip{border-color:var(--grey)}
+  .evi{color:var(--faint)}
+  .issuelink,.prlink{font-family:var(--mono);font-size:11.5px;border-radius:8px;padding:8px 11px;margin-top:2px}
+  .issuelink{color:var(--amber);background:rgba(245,177,60,.08);border:1px solid rgba(245,177,60,.22)}
+  .prlink{color:var(--green);background:rgba(73,209,127,.08);border:1px solid rgba(73,209,127,.25);display:none}
+  .prlink.show{display:block} .prlink a{color:var(--green);font-weight:700}
+  .skipnote{color:var(--grey);font-size:11.5px;font-family:var(--mono)}
+
+  .lanelog{background:#0c0f16;border:1px solid var(--line);border-radius:9px;padding:10px 12px;font-family:var(--mono);font-size:11px;line-height:1.6;min-height:64px;max-height:230px;overflow-y:auto}
+  .lanelog .idle{color:var(--faint)}
+  .ln{margin-bottom:6px;display:flex;gap:7px;align-items:flex-start;animation:fade .25s ease}
+  @keyframes fade{from{opacity:0}to{opacity:1}}
+  .lb{flex-shrink:0;font-size:9px;font-weight:700;padding:1px 6px;border-radius:4px;text-transform:uppercase;margin-top:1px}
+  .lb.plan{background:rgba(139,156,255,.15);color:var(--violet)}
+  .lb.tool{background:rgba(51,225,196,.12);color:var(--cyan)}
+  .lb.status{background:#232a39;color:var(--dim)}
+  .lb.fail{background:rgba(242,85,90,.15);color:var(--red)}
+  .lb.pass{background:rgba(73,209,127,.15);color:var(--green)}
+  .lb.done{background:rgba(73,209,127,.15);color:var(--green)}
+  .tx{color:var(--ink)} .tx .muted{color:var(--dim)}
+  footer{margin-top:22px;padding-top:14px;border-top:1px solid var(--line);color:var(--faint);font-size:12px;font-family:var(--mono)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <div class="brand">
+      <div class="mark">◈</div>
+      <div><h1>Sentinel</h1><div class="tag">Fleet Remediation Cockpit</div></div>
+    </div>
+    <div class="actions">
+      <button class="btn" id="run-live" style="display:none">☁ Run fleet on cloud</button>
+      <button class="btn ghost" id="run-replay">▶ Play recorded fleet run</button>
+      <span class="replay" id="runmeta">idle</span>
+    </div>
+  </div>
+
+  <div class="summary" id="summary"></div>
+  <div class="grid" id="grid"></div>
+  <footer id="foot"></footer>
+</div>
+
+<script>
+const FLEET = __FLEET_JSON__;
+const RUN = __RUN_JSON__;
+const el = (id) => document.getElementById(id);
+const ART = (RUN.meta && RUN.meta.artifacts) || { prs: {}, issues: {} };
+
+function esc(s){return String(s).replace(/[&<>]/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));}
+const routeOrder={FIX:0,ESCALATE:1,SKIP:2};
+
+function renderSummary(){
+  const s = FLEET.summary;
+  el("summary").innerHTML =
+    '<span class="count svc"><b>'+s.services+'</b> services</span>' +
+    '<span class="count fix"><b>'+s.FIX+'</b> FIX</span>' +
+    '<span class="count esc"><b>'+s.ESCALATE+'</b> ESCALATE</span>' +
+    '<span class="count skip"><b>'+s.SKIP+'</b> SKIP</span>' +
+    '<span class="count"><b>'+s.findings+'</b> findings across the CVE fleet</span>';
+  el("foot").textContent = RUN.meta.note + "  ·  the same CVE routes three ways across the fleet.";
+}
+
+function findingLine(f){
+  const r=f.route.toLowerCase();
+  const reach = f.reachability.reachable
+    ? '<span class="evi">reachable · '+(f.reachability.reachablePath? f.reachability.reachablePath.join(" → ") : "on a live path")+'</span>'
+    : '<span class="evi">unreachable · 0 import sites</span>';
+  return '<div class="finding '+r+'"><span class="pkg">'+f.dependency.name+'@'+f.dependency.version+'</span> · '
+    +(f.advisory.cve||f.advisory.id)+' · CVSS '+(f.advisory.cvssScore!=null?f.advisory.cvssScore.toFixed(1):'?')+'<br>'+reach+'</div>';
+}
+
+function svcCard(svc){
+  const findings = svc.report.findings.slice().sort((a,b)=>routeOrder[a.route]-routeOrder[b.route]);
+  const routes = [...new Set(findings.map(f=>f.route))];
+  const cls = routes.includes("FIX") ? "fix" : (routes.includes("ESCALATE") ? "escalate" : "skip");
+  const pills = routes.map(r=>'<span class="pill '+r.toLowerCase()+'">'+r+'</span>').join("");
+  let body = findings.map(findingLine).join("");
+
+  const hasFix = routes.includes("FIX");
+  if (hasFix) {
+    body += '<div class="lanelog" id="lane-'+svc.name+'"><div class="idle">awaiting run…</div></div>';
+    body += '<div class="prlink" id="pr-'+svc.name+'"></div>';
+  }
+  const esc = findings.find(f=>f.route==="ESCALATE");
+  if (esc) {
+    const issue = ART.issues[svc.name];
+    body += '<div class="issuelink">! human review required'+(issue?' → <a href="'+issue+'" target="_blank" rel="noopener noreferrer">open issue ↗</a>':'')+'</div>';
+  }
+  if (!hasFix && !esc) {
+    body += '<div class="skipnote">· no action — unreachable, patching adds risk without reducing exposure</div>';
+  }
+  return '<div class="svc '+cls+'"><div class="h"><div><div class="n">'+svc.name+'</div>'
+    +'<div class="r">'+svc.repoUrl.replace("https://github.com/","")+'</div></div><div class="pills">'+pills+'</div></div>'
+    +'<div class="body">'+body+'</div></div>';
+}
+
+function renderGrid(){
+  const order = FLEET.services.slice().sort((a,b)=>{
+    const ar = a.report.findings.some(f=>f.route==="FIX")?0:(a.report.findings.some(f=>f.route==="ESCALATE")?1:2);
+    const br = b.report.findings.some(f=>f.route==="FIX")?0:(b.report.findings.some(f=>f.route==="ESCALATE")?1:2);
+    return ar-br;
+  });
+  el("grid").innerHTML = order.map(svcCard).join("");
+}
+
+/* ---- lane streaming ---- */
+const lane = {}; // name -> {log, curA, lastT}
+function laneFor(name){
+  if(!lane[name]){ const log=el("lane-"+name); if(!log) return null; log.innerHTML=""; lane[name]={log,curA:null,lastT:null}; }
+  return lane[name];
+}
+function toolText(e){const m={read:"read",write:"write",edit:"edit",shell:"$",read_file:"read",file_search:"search",run_terminal_cmd:"$"};const v=m[e.tool]||e.tool;return '<span class="muted">'+v+'</span>'+(e.detail?" "+esc(e.detail):"");}
+function addLn(L,html,cls){const d=document.createElement("div");d.className="ln "+(cls||"");d.innerHTML=html;L.log.appendChild(d);L.log.scrollTop=L.log.scrollHeight;return d;}
+
+function renderTo(name,e){
+  const L=laneFor(name); if(!L) return;
+  if(e.kind!=="assistant") L.curA=null;
+  if(e.kind!=="tool") L.lastT=null;
+  switch(e.kind){
+    case "status": addLn(L,'<span class="lb status">agent</span><span class="tx muted">'+esc(e.text)+'</span>'); break;
+    case "plan": addLn(L,'<span class="lb plan">plan</span><span class="tx">'+esc(e.text)+'</span>'); break;
+    case "assistant": {
+      const t=esc(e.text);
+      if(L.curA){ L.curA.querySelector(".tx").innerHTML+=t; L.log.scrollTop=L.log.scrollHeight; }
+      else L.curA=addLn(L,'<span class="lb status">agent</span><span class="tx">'+t+'</span>');
+      break;
+    }
+    case "tool": {
+      const detail=e.detail||"";
+      if(L.lastT && L.lastT.name===e.tool && L.lastT.detail===detail){ L.lastT.count++; L.lastT.el.querySelector(".tx").innerHTML=toolText(e)+' <span class="muted">×'+L.lastT.count+'</span>'; }
+      else { const d=addLn(L,'<span class="lb tool">'+((e.tool==="shell"||e.tool==="run_terminal_cmd")?"shell":"tool")+'</span><span class="tx">'+toolText(e)+'</span>'); L.lastT={name:e.tool,detail,el:d,count:1}; }
+      break;
+    }
+    case "test": addLn(L,'<span class="lb '+(e.status==="pass"?"pass":"fail")+'">'+(e.status==="pass"?"green":"red")+'</span><span class="tx">'+esc(e.summary)+'</span>',e.status); break;
+    case "done": {
+      addLn(L,'<span class="lb done">done</span><span class="tx">PR opened</span>');
+      const pr = e.prUrl || ART.prs[name];
+      const bar=el("pr-"+name);
+      if(bar && pr && pr!=="PENDING"){ bar.className="prlink show"; bar.innerHTML='✅ <a href="'+pr+'" target="_blank" rel="noopener noreferrer">'+pr.replace("https://github.com/","")+' ↗</a>'; }
+      else if(bar){ bar.className="prlink show"; bar.textContent="✅ draft PR opened"; }
+      break;
+    }
+  }
+}
+
+/* ---- recorded replay ---- */
+let running=false;
+function playRecorded(){
+  if(running) return; running=true;
+  Object.keys(lane).forEach(k=>delete lane[k]);
+  document.querySelectorAll(".prlink").forEach(p=>{p.className="prlink";p.innerHTML="";});
+  el("runmeta").textContent="recorded · parallel";
+  const tl=RUN.timeline; let i=0;
+  (function step(){ if(i>=tl.length){running=false;el("runmeta").textContent="recorded · done";return;} const e=tl[i++]; renderTo(e.lane,e); setTimeout(step,e.delay||600); })();
+}
+
+/* ---- live parallel cloud ---- */
+let es=null, tick=null;
+function runLive(){
+  if(running) return; running=true;
+  Object.keys(lane).forEach(k=>delete lane[k]);
+  document.querySelectorAll(".prlink").forEach(p=>{p.className="prlink";p.innerHTML="";});
+  const t0=Date.now(); el("runmeta").textContent="cloud · live · 0s";
+  tick=setInterval(()=>el("runmeta").textContent="cloud · live · "+Math.round((Date.now()-t0)/1000)+"s",1000);
+  es=new EventSource("/api/run-fleet");
+  let doneCount=0; const fixCount=FLEET.services.filter(s=>s.report.findings.some(f=>f.route==="FIX")).length;
+  es.onmessage=(m)=>{ let e; try{e=JSON.parse(m.data);}catch(_){return;} if(e.lane) renderTo(e.lane,e); if(e.kind==="done"){ doneCount++; if(doneCount>=fixCount) finishLive(); } };
+  es.addEventListener("end",finishLive);
+  es.onerror=()=>{ el("runmeta").textContent="live unavailable — use recorded"; finishLive(); };
+}
+function finishLive(){ if(es){try{es.close();}catch(_){}} if(tick){clearInterval(tick);tick=null;} running=false; }
+
+async function checkLive(){ try{ const r=await fetch("/api/health"); if(!r.ok) return; const h=await r.json(); if(h.live){ el("run-live").style.display=""; } }catch(_){} }
+
+renderSummary();
+renderGrid();
+el("run-replay").addEventListener("click",playRecorded);
+el("run-live").addEventListener("click",runLive);
+checkLive();
+</script>
+</body>
+</html>

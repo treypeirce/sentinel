@@ -63,10 +63,22 @@ function phaseLabel(status: string): string {
 const server = createServer((req, res) => {
   const url = req.url ?? "/";
 
-  if (url === "/" || url.startsWith("/cockpit")) {
+  if (url === "/" || url.startsWith("/fleet")) {
+    const p = join(ROOT, "public", "fleet.html");
+    if (!existsSync(p)) return send(res, 500, "text/plain", "Run `npm run cockpit:fleet` first.");
+    return send(res, 200, "text/html", readFileSync(p, "utf8"));
+  }
+
+  if (url.startsWith("/cockpit")) {
     const p = join(ROOT, "public", "cockpit.html");
     if (!existsSync(p)) return send(res, 500, "text/plain", "Run `npm run cockpit:build` first.");
     return send(res, 200, "text/html", readFileSync(p, "utf8"));
+  }
+
+  if (url.startsWith("/api/fleet")) {
+    const p = join(ROOT, "fleet-queue.json");
+    if (!existsSync(p)) return send(res, 404, "application/json", "{}");
+    return send(res, 200, "application/json", readFileSync(p, "utf8"));
   }
 
   if (url.startsWith("/api/health")) {
@@ -128,6 +140,54 @@ const server = createServer((req, res) => {
       } catch (e: any) {
         emit({ kind: "status", text: "Live run error: " + (e?.message ?? e) });
         emit({ kind: "done", status: "error" });
+      } finally {
+        res.write("event: end\ndata: {}\n\n");
+        res.end();
+      }
+    })();
+    return;
+  }
+
+  // Live PARALLEL fleet remediation: dispatch a cloud agent per FIX service.
+  if (url.startsWith("/api/run-fleet")) {
+    const emit = sse(res);
+    const apiKey = process.env.CURSOR_API_KEY;
+    const fleetPath = join(ROOT, "fleet-queue.json");
+    if (!apiKey || !existsSync(fleetPath)) {
+      emit({ kind: "status", text: "No key or fleet-queue.json on the server." });
+      emit({ kind: "done", status: "error" });
+      return res.end();
+    }
+    const fleet = JSON.parse(readFileSync(fleetPath, "utf8")) as any;
+    const fixServices = (fleet.services as any[]).filter((s) => s.report.findings.some((f: any) => f.route === "FIX"));
+    (async () => {
+      try {
+        const { Agent } = await import("@cursor/sdk");
+        await Promise.all(
+          fixServices.map(async (svc: any) => {
+            const lane = svc.name;
+            try {
+              emit({ lane, kind: "status", text: `Dispatching cloud agent to ${lane}…` });
+              const agent = await Agent.create({
+                apiKey,
+                model: { id: MODEL },
+                cloud: { repos: [{ url: svc.repoUrl, startingRef: REF }], autoCreatePR: true },
+              });
+              emit({ lane, kind: "status", text: `Cloud agent ${(agent as any).agentId ?? ""} dispatched` });
+              const run = await agent.send(FIX_PROMPT);
+              for await (const ev of run.stream() as AsyncIterable<any>) {
+                if (ev?.type === "status") emit({ lane, kind: "status", text: phaseLabel(ev.status ?? ev.state) });
+                else if (ev?.type === "assistant") { const t = extractText(ev); if (t) emit({ lane, kind: "assistant", text: t }); }
+                else if (ev?.type === "tool_call") emit({ lane, kind: "tool", tool: ev.tool ?? ev.name ?? "tool", detail: ev.detail ?? "" });
+              }
+              const result = (await run.wait().catch(() => null)) as any;
+              emit({ lane, kind: "done", status: result?.status ?? "complete", prUrl: result?.git?.branches?.[0]?.prUrl });
+            } catch (e: any) {
+              emit({ lane, kind: "status", text: "error: " + (e?.message ?? e) });
+              emit({ lane, kind: "done", status: "error" });
+            }
+          }),
+        );
       } finally {
         res.write("event: end\ndata: {}\n\n");
         res.end();
