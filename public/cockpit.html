@@ -66,6 +66,9 @@
   .act{margin-top:13px}
   .btn{font-family:var(--sans);font-weight:600;font-size:13.5px;color:#04231e;background:var(--cyan);border:none;border-radius:9px;padding:9px 16px;cursor:pointer;transition:filter .15s}
   .btn:hover{filter:brightness(1.08)} .btn:disabled{opacity:.5;cursor:default}
+  .btn.live{margin-right:8px}
+  .btn.ghost{background:transparent;color:var(--cyan);border:1px solid var(--cyan)}
+  .btn.ghost:hover{background:rgba(51,225,196,.08);filter:none}
   .escnote,.skipnote{font-family:var(--mono);font-size:11.5px;padding:8px 11px;border-radius:8px;margin-top:6px}
   .escnote{color:var(--amber);background:rgba(245,177,60,.08);border:1px solid rgba(245,177,60,.22)}
   .skipnote{color:var(--grey);background:rgba(124,138,160,.07);border:1px solid var(--line)}
@@ -325,7 +328,10 @@ function cardHtml(f) {
   const epss = f.epss != null ? (f.epss * 100).toFixed(f.epss < 0.01 ? 2 : 1) + "%" : "n/a";
   let action = "";
   if (f.route === "FIX") {
-    action = '<div class="act"><button class="btn" id="remediate">▶ Remediate with agent</button></div>';
+    action = '<div class="act">' +
+      '<button class="btn live" id="remediate-live" style="display:none">☁ Run live on cloud</button>' +
+      '<button class="btn ghost" id="remediate">▶ Play recorded run</button>' +
+      '</div>';
   } else if (f.route === "ESCALATE") {
     action = '<div class="escnote">! human sign-off required — ' + (f.sensitiveMatch || "sensitive path") + '</div>';
   } else {
@@ -353,13 +359,57 @@ function renderQueue() {
   el("queue").innerHTML = sorted.map(cardHtml).join("");
   const btn = el("remediate");
   if (btn) btn.addEventListener("click", startRun);
+  const live = el("remediate-live");
+  if (live) live.addEventListener("click", startLiveRun);
+  checkLive();
+}
+
+/* Show the live cloud button only when a server with a key is present. */
+async function checkLive() {
+  try {
+    const r = await fetch("/api/health");
+    if (!r.ok) return;
+    const h = await r.json();
+    if (h.live) { const b = el("remediate-live"); if (b) b.style.display = ""; }
+  } catch (_) { /* opened as a file / no server — recorded run only */ }
+}
+
+let elapsed = null;
+function startLiveRun() {
+  if (running) return;
+  running = true;
+  const lb = el("remediate-live");
+  const rb = el("remediate");
+  if (lb) { lb.disabled = true; lb.textContent = "Running on cloud…"; }
+  if (rb) rb.disabled = true;
+  el("empty").style.display = "none";
+  el("log").innerHTML = "";
+  curAssistant = null; lastTool = null;
+  const t0 = Date.now();
+  el("runmeta").textContent = "cloud · live · 0s";
+  elapsed = setInterval(() => { el("runmeta").textContent = "cloud · live · " + Math.round((Date.now() - t0) / 1000) + "s"; }, 1000);
+  const es = new EventSource("/api/run-cloud");
+  es.onmessage = (m) => { let e; try { e = JSON.parse(m.data); } catch (_) { return; } render(e); if (e.kind === "done") finishLive(es, lb); };
+  es.addEventListener("end", () => finishLive(es, lb));
+  es.onerror = () => {
+    addLine('<span class="lb fail">error</span><span class="ltext">Live run unavailable — start the cockpit server with your key set (npm run cockpit). The recorded run always works.</span>', "fail");
+    finishLive(es, lb);
+  };
+}
+function finishLive(es, lb) {
+  try { es.close(); } catch (_) {}
+  if (elapsed) { clearInterval(elapsed); elapsed = null; }
+  running = false;
+  if (lb) { lb.disabled = false; lb.textContent = "☁ Run live on cloud"; }
+  const rb = el("remediate");
+  if (rb) rb.disabled = false;
 }
 
 /* ---- replay ---- */
-function toolPhrase(e) {
-  const map = { read: "read", write: "write", edit: "edit", shell: "$" };
+function toolText(e) {
+  const map = { read: "read", write: "write", edit: "edit", shell: "$", read_file: "read", file_search: "search", run_terminal_cmd: "$", list_dir: "ls", grep: "grep" };
   const verb = map[e.tool] || e.tool;
-  return '<span class="ltext"><span class="muted">' + verb + '</span> ' + escapeHtml(e.detail || "") + '</span>';
+  return '<span class="muted">' + verb + '</span>' + (e.detail ? " " + escapeHtml(e.detail) : "");
 }
 function escapeHtml(s){return String(s).replace(/[&<>]/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));}
 
@@ -382,6 +432,8 @@ function addLine(html, cls) {
 }
 
 let running = false;
+let curAssistant = null;
+let lastTool = null;
 function startRun() {
   if (running) return;
   running = true;
@@ -389,6 +441,7 @@ function startRun() {
   if (btn) { btn.disabled = true; btn.textContent = "Remediating…"; }
   el("empty").style.display = "none";
   el("log").innerHTML = "";
+  curAssistant = null; lastTool = null;
   el("runmeta").textContent = RUN.meta.model + " · " + RUN.meta.mode;
   let i = 0;
   const events = RUN.events;
@@ -406,6 +459,8 @@ function startRun() {
 }
 
 function render(e) {
+  if (e.kind !== "assistant") curAssistant = null;
+  if (e.kind !== "tool") lastTool = null;
   switch (e.kind) {
     case "status":
       addLine('<span class="lb status">agent</span><span class="ltext muted">' + escapeHtml(e.text) + '</span>', "status");
@@ -413,12 +468,39 @@ function render(e) {
     case "plan":
       addLine('<span class="lb plan">plan</span><span class="ltext">' + escapeHtml(e.text) + '</span>', "plan");
       break;
-    case "tool":
-      addLine('<span class="lb tool">' + (e.tool === "shell" ? "shell" : "tool") + '</span>' + toolPhrase(e), "tool");
+    case "tool": {
+      const detail = e.detail || "";
+      const label = (e.tool === "shell" || e.tool === "run_terminal_cmd") ? "shell" : "tool";
+      if (lastTool && lastTool.name === e.tool && lastTool.detail === detail) {
+        lastTool.count++;
+        lastTool.el.querySelector(".ltext").innerHTML = toolText(e) + ' <span class="muted">×' + lastTool.count + '</span>';
+      } else {
+        const log = el("log");
+        const div = document.createElement("div");
+        div.className = "line tool";
+        div.innerHTML = '<span class="lb tool">' + label + '</span><span class="ltext">' + toolText(e) + '</span>';
+        log.appendChild(div);
+        log.scrollTop = log.scrollHeight;
+        lastTool = { name: e.tool, detail: detail, el: div, count: 1 };
+      }
       break;
-    case "assistant":
-      addLine('<span class="lb say">agent</span><span class="ltext">' + escapeHtml(e.text) + '</span>', "say");
+    }
+    case "assistant": {
+      const txt = escapeHtml(e.text);
+      if (curAssistant) {
+        curAssistant.querySelector(".ltext").innerHTML += txt;
+        el("log").scrollTop = el("log").scrollHeight;
+      } else {
+        const log = el("log");
+        const div = document.createElement("div");
+        div.className = "line say";
+        div.innerHTML = '<span class="lb say">agent</span><span class="ltext">' + txt + '</span>';
+        log.appendChild(div);
+        log.scrollTop = log.scrollHeight;
+        curAssistant = div;
+      }
       break;
+    }
     case "test":
       addLine('<span class="lb ' + (e.status === "pass" ? "pass" : "fail") + '">' + (e.status === "pass" ? "green" : "red") +
         '</span><span class="ltext">' + escapeHtml(e.summary) + '</span>', e.status);
