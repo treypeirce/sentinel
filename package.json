@@ -10,6 +10,17 @@
   "scripts": {
     "triage": "node src/cli.ts",
     "triage:refresh": "node src/cli.ts --refresh",
+    "fix:local": "node src/agent/runLocal.ts",
+    "fix:cloud": "node src/agent/kickoffCloud.ts",
+    "verify:key": "node src/agent/verifyKey.mjs",
+    "typecheck": "tsc --noEmit",
     "test": "node --test test/cvss.test.ts test/reachability.test.ts test/policy.test.ts"
+  },
+  "dependencies": {
+    "@cursor/sdk": "^1.0.23"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.0",
+    "typescript": "^6.0.3"
   }
 }

@@ -89,6 +89,45 @@ npm test                      # node:test — CVSS calc, reachability, policy
 No dependencies. No build. Runs on Node's native TypeScript support; advisory
 data is cached under `cache/` so a demo runs with the network unplugged.
 
+## Agent runner (Phase 3)
+
+The triage engine decides *what* to do. The agent runner does it — but only for
+`FIX` findings, and only through the Cursor SDK (`@cursor/sdk`). `SKIP` and
+`ESCALATE` never reach an agent.
+
+> The triage **engine** is zero-dependency. The **runner** uses the official
+> `@cursor/sdk`, so it needs `npm install` and a `CURSOR_API_KEY`.
+
+```bash
+npm install                   # pulls @cursor/sdk
+export CURSOR_API_KEY="…"     # from Cursor Dashboard → API Keys
+
+# Local: fast, in-process, edits a working copy, streams the agent live.
+npm run fix:local -- --target /path/to/working-copy
+
+# Cloud: opens a real PR on the connected GitHub repo (autoCreatePR).
+# Launch at the start of a demo; it prints the PR URL when it lands.
+npm run fix:cloud -- --repo https://github.com/<owner>/<repo>
+
+npm run verify:key            # cheap auth check, no agent run
+```
+
+What the runner does for the FIX finding, via a strictly-ordered prompt
+(`src/agent/prompt.ts`): **reproduce with a failing test → minimal patch →
+tests green → keep the regression test → stop.** It never merges. The failing-
+then-passing test is the proof the fix is real; the agent's diff is just
+evidence.
+
+- `src/agent/runLocal.ts` — local loop (the on-stage demo path).
+- `src/agent/kickoffCloud.ts` — cloud agent + `autoCreatePR` (the background PR).
+- `src/agent/events.ts` — defensive stream renderer.
+- `src/agent/prompt.ts` — the reproduce-first remediation prompt.
+
+Prereqs for the cloud path: the target GitHub repo must be connected to the
+Cursor account so the cloud agent can clone it and open a PR. Local agents run
+tools without an approval prompt by default, so the target repo's
+`.cursor/hooks.json` is what enforces guardrails during a run.
+
 ## Layout
 
 ```
