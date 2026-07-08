@@ -75,6 +75,12 @@ const server = createServer((req, res) => {
     return send(res, 200, "text/html", readFileSync(p, "utf8"));
   }
 
+  if (url.startsWith("/arch")) {
+    const p = join(ROOT, "public", "arch.html");
+    if (!existsSync(p)) return send(res, 404, "text/plain", "arch.html not found");
+    return send(res, 200, "text/html", readFileSync(p, "utf8"));
+  }
+
   if (url.startsWith("/api/fleet")) {
     const p = join(ROOT, "fleet-queue.json");
     if (!existsSync(p)) return send(res, 404, "application/json", "{}");
