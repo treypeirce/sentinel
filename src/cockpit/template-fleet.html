@@ -98,6 +98,15 @@
   .lb.pass{background:var(--greenbg);color:var(--green)}
   .lb.done{background:var(--greenbg);color:var(--green)}
   .tx{color:var(--ink)} .tx .muted{color:var(--dim)}
+  .rvbox{margin:8px 0 4px;background:#fff;border:1px solid var(--line);border-radius:8px;padding:10px 12px;animation:fade .25s ease}
+  .rvhead{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+  .vtag{font:700 9.5px var(--mono);letter-spacing:.05em;border-radius:4px;padding:2px 7px;background:var(--greybg);color:var(--dim)}
+  .vtag.ok{background:var(--greenbg);color:var(--green)}
+  .vtag.warn{background:var(--amberbg);color:var(--amber)}
+  .rvmeta{font:500 10px var(--mono);color:var(--faint);margin-left:auto}
+  .rvtext{font:400 11px var(--mono);color:var(--dim);white-space:pre-wrap;line-height:1.6}
+  .rvlink{margin-top:7px;font:500 11px var(--mono)}
+  .rvlink a{color:var(--green);font-weight:700}
 
   .hide{display:none!important}
   .flow{display:none}
@@ -140,6 +149,7 @@
     </div>
     <div class="actions">
       <button class="btn" id="run-live" style="display:none">Run fleet on cloud</button>
+      <button class="btn ghost" id="run-review" style="display:none" title="A third cloud agent reviews the acme-billing fix PR, read-only, and posts its review on the PR">Review a PR with an agent</button>
       <button class="btn ghost" id="run-replay">Play recorded run</button>
       <button class="btn ghost" id="show-flow">How it works</button>
       <span class="gchip" title="beforeShellExecution hook denies: curl|sh · git push --force · rm -rf · .github/workflows edits · .env reads · publish"><b>✓</b> change-control hooks enforced</span>
@@ -305,8 +315,16 @@ function renderTo(name,e){
       break;
     }
     case "test": addLn(L,'<span class="lb '+(e.status==="pass"?"pass":"fail")+'">'+(e.status==="pass"?"green":"red")+'</span><span class="tx">'+esc(e.summary)+'</span>',e.status); break;
+    case "review": {
+      const v=e.verdict==="approve"?'<span class="vtag ok">✓ APPROVE</span>':(e.verdict==="changes"?'<span class="vtag warn">REQUEST CHANGES</span>':'<span class="vtag">REVIEW</span>');
+      let html='<div class="rvhead">'+v+'<span class="rvmeta">'+receipt(e)+'</span></div><div class="rvtext">'+esc(e.text||"")+'</div>';
+      if(e.commentUrl) html+='<div class="rvlink"><a href="'+e.commentUrl+'" target="_blank" rel="noopener noreferrer">review posted on the PR ↗</a></div>';
+      const d=document.createElement("div"); d.className="rvbox"; d.innerHTML=html; L.log.appendChild(d); L.log.scrollTop=L.log.scrollHeight;
+      break;
+    }
     case "done": {
-      addLn(L,'<span class="lb done">done</span><span class="tx">PR opened</span>');
+      if(e.noPr){ addLn(L,'<span class="lb done">done</span><span class="tx">'+(e.status==="error"?"reviewer errored":"review complete")+'</span>'); break; }
+      addLn(L,'<span class="lb done">done</span><span class="tx">PR opened'+(receipt(e)?' <span class="muted">· '+receipt(e)+'</span>':'')+'</span>');
       const pr = e.prUrl || ART.prs[name];
       const bar=el("pr-"+name);
       if(bar && pr && pr!=="PENDING"){ bar.className="prlink show"; bar.innerHTML='✓ <a href="'+pr+'" target="_blank" rel="noopener noreferrer">'+pr.replace("https://github.com/","")+' ↗</a>'; }
@@ -314,6 +332,13 @@ function renderTo(name,e){
       break;
     }
   }
+}
+
+function receipt(e){
+  const parts=[];
+  if(typeof e.durationMs==="number"){ const s=Math.round(e.durationMs/1000); parts.push(s>=60?Math.floor(s/60)+"m "+(s%60)+"s":s+"s"); }
+  if(typeof e.tokens==="number") parts.push(e.tokens.toLocaleString()+" tokens");
+  return parts.join(" · ");
 }
 
 /* ---- recorded replay ---- */
@@ -343,7 +368,19 @@ function runLive(){
 }
 function finishLive(){ if(es){try{es.close();}catch(_){}} if(tick){clearInterval(tick);tick=null;} running=false; }
 
-async function checkLive(){ try{ const r=await fetch("/api/health"); if(!r.ok) return; const h=await r.json(); if(h.live){ el("run-live").style.display=""; } }catch(_){} }
+async function checkLive(){ try{ const r=await fetch("/api/health"); if(!r.ok) return; const h=await r.json(); if(h.live){ el("run-live").style.display=""; el("run-review").style.display=""; } }catch(_){} }
+
+let reviewing=false;
+function runReview(){
+  if(reviewing) return; reviewing=true;
+  const btn=el("run-review"); btn.disabled=true;
+  el("runmeta").textContent="reviewer · live";
+  const src=new EventSource("/api/run-review");
+  const finish=()=>{ try{src.close();}catch(_){} reviewing=false; btn.disabled=false; el("runmeta").textContent="reviewer · done"; };
+  src.onmessage=(m)=>{ let e; try{e=JSON.parse(m.data);}catch(_){return;} if(e.lane) renderTo(e.lane,e); };
+  src.addEventListener("end",finish);
+  src.onerror=finish;
+}
 
 let flowOn=false;
 function toggleFlow(){
@@ -359,6 +396,7 @@ renderSummary();
 renderGrid();
 el("run-replay").addEventListener("click",playRecorded);
 el("run-live").addEventListener("click",runLive);
+el("run-review").addEventListener("click",runReview);
 el("show-flow").addEventListener("click",toggleFlow);
 checkLive();
 </script>

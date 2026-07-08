@@ -34,6 +34,48 @@ Steps in order:
 3. Run the test suite until green; keep the reproduction test as a regression test.
 Change only what this fix needs. Do not touch .github/** or .cursor/**. Do not merge.`;
 
+/** Last PR opened per repo URL during this server session (live fleet runs update it). */
+const LAST_PR: Record<string, string> = {};
+const DEFAULT_REVIEW_PR = "https://github.com/treypeirce/acme-billing/pull/1";
+
+function reviewPrompt(prNumber: number): string {
+  return `You are a senior security reviewer. READ ONLY: do not modify code, do not push, do not open PRs.
+Steps:
+1. Run: git fetch origin pull/${prNumber}/head:prhead
+2. Run: git diff main...prhead  (read the changed files for context if needed)
+3. Review the change as a security fix.
+Output EXACTLY this format, max 120 words total:
+VERDICT: APPROVE   (or: VERDICT: REQUEST CHANGES)
+- correctness: <one line on whether the fix actually closes the vulnerability>
+- test: <one line on the quality of the regression test>
+- risk: <one line on any remaining risk or follow-up>`;
+}
+
+function receiptOf(result: any, t0: number) {
+  const durationMs = result?.durationMs ?? (Date.now() - t0);
+  const tokens = result?.usage?.totalTokens;
+  return { durationMs, tokens };
+}
+
+function parsePrUrl(prUrl: string): { owner: string; repo: string; num: number } | null {
+  const m = prUrl.match(/github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)/);
+  return m ? { owner: m[1], repo: m[2], num: Number(m[3]) } : null;
+}
+
+async function postPrComment(prUrl: string, body: string): Promise<string | null> {
+  const pat = process.env.GITHUB_PAT;
+  const p = parsePrUrl(prUrl);
+  if (!pat || !p) return null;
+  const r = await fetch(`https://api.github.com/repos/${p.owner}/${p.repo}/issues/${p.num}/comments`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${pat}`, accept: "application/vnd.github+json", "user-agent": "sentinel-cockpit" },
+    body: JSON.stringify({ body }),
+  });
+  if (!r.ok) return null;
+  const d = (await r.json()) as any;
+  return d?.html_url ?? null;
+}
+
 function sse(res: any) {
   res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache", connection: "keep-alive" });
   return (obj: unknown) => res.write(`data: ${JSON.stringify(obj)}\n\n`);
@@ -123,6 +165,7 @@ const server = createServer((req, res) => {
       return res.end();
     }
     (async () => {
+      const t0 = Date.now();
       try {
         const { Agent } = await import("@cursor/sdk");
         emit({ kind: "status", text: `Dispatching cloud agent to ${REPO.split("/").slice(-2).join("/")}…` });
@@ -142,7 +185,8 @@ const server = createServer((req, res) => {
         const result = (await run.wait().catch(() => null)) as any;
         const branch = result?.git?.branches?.[0]?.branch;
         const pr = result?.git?.branches?.[0]?.prUrl ?? result?.git?.branches?.[0]?.pr_url;
-        emit({ kind: "done", status: result?.status ?? "complete", branch, prUrl: pr });
+        if (pr) LAST_PR[REPO] = pr;
+        emit({ kind: "done", status: result?.status ?? "complete", branch, prUrl: pr, ...receiptOf(result, t0) });
       } catch (e: any) {
         emit({ kind: "status", text: "Live run error: " + (e?.message ?? e) });
         emit({ kind: "done", status: "error" });
@@ -172,6 +216,7 @@ const server = createServer((req, res) => {
         await Promise.all(
           fixServices.map(async (svc: any) => {
             const lane = svc.name;
+            const t0 = Date.now();
             try {
               emit({ lane, kind: "status", text: `Dispatching cloud agent to ${lane}…` });
               const agent = await Agent.create({
@@ -187,13 +232,74 @@ const server = createServer((req, res) => {
                 else if (ev?.type === "tool_call") emit({ lane, kind: "tool", tool: ev.tool ?? ev.name ?? "tool", detail: ev.detail ?? "" });
               }
               const result = (await run.wait().catch(() => null)) as any;
-              emit({ lane, kind: "done", status: result?.status ?? "complete", prUrl: result?.git?.branches?.[0]?.prUrl });
+              const prUrl = result?.git?.branches?.[0]?.prUrl;
+              if (prUrl) LAST_PR[svc.repoUrl] = prUrl;
+              emit({ lane, kind: "done", status: result?.status ?? "complete", prUrl, ...receiptOf(result, t0) });
             } catch (e: any) {
               emit({ lane, kind: "status", text: "error: " + (e?.message ?? e) });
               emit({ lane, kind: "done", status: "error" });
             }
           }),
         );
+      } finally {
+        res.write("event: end\ndata: {}\n\n");
+        res.end();
+      }
+    })();
+    return;
+  }
+
+  // Reviewer agent: a cloud agent reviews a fix PR (read-only) and, if a
+  // GITHUB_PAT is set, its review is posted as a real comment on the PR.
+  if (url.startsWith("/api/run-review")) {
+    const emit = sse(res);
+    const apiKey = process.env.CURSOR_API_KEY;
+    if (!apiKey) {
+      emit({ kind: "status", text: "No CURSOR_API_KEY on the server." });
+      emit({ kind: "done", status: "error" });
+      return res.end();
+    }
+    const billingRepo = "https://github.com/treypeirce/acme-billing";
+    const prUrl = LAST_PR[billingRepo] ?? DEFAULT_REVIEW_PR;
+    const target = parsePrUrl(prUrl);
+    if (!target) {
+      emit({ kind: "status", text: "No reviewable PR found." });
+      emit({ kind: "done", status: "error" });
+      return res.end();
+    }
+    const lane = "acme-billing";
+    (async () => {
+      const t0 = Date.now();
+      try {
+        const { Agent } = await import("@cursor/sdk");
+        emit({ lane, kind: "status", text: `Dispatching REVIEWER agent for ${target.repo} PR #${target.num}…` });
+        // Note: autoCreatePR must be present for cloud runs (runs die with
+        // stream_unavailable without it). The reviewer makes no changes, so no
+        // PR is ever created; the read-only prompt is respected (verified).
+        const agent = await Agent.create({
+          apiKey,
+          model: { id: MODEL },
+          cloud: { repos: [{ url: billingRepo, startingRef: "main" }], autoCreatePR: true },
+        });
+        emit({ lane, kind: "status", text: `Reviewer agent ${(agent as any).agentId ?? ""} dispatched · read-only` });
+        const run = await agent.send(reviewPrompt(target.num));
+        for await (const ev of run.stream() as AsyncIterable<any>) {
+          if (ev?.type === "status") emit({ lane, kind: "status", text: phaseLabel(ev.status ?? ev.state) });
+          else if (ev?.type === "assistant") { const t = extractText(ev); if (t) emit({ lane, kind: "assistant", text: t }); }
+          else if (ev?.type === "tool_call") emit({ lane, kind: "tool", tool: ev.tool ?? ev.name ?? "tool", detail: ev.detail ?? "" });
+        }
+        const result = (await run.wait().catch(() => null)) as any;
+        const text = String(result?.result ?? "").trim();
+        const verdict = /VERDICT:\s*APPROVE/i.test(text) ? "approve" : (/VERDICT:\s*REQUEST/i.test(text) ? "changes" : "review");
+        let commentUrl: string | null = null;
+        if (text) {
+          commentUrl = await postPrComment(prUrl, `**Sentinel · agent review of this PR**\n\n${text}\n\n_Posted automatically by the Sentinel reviewer agent (${MODEL}). A human still owns the merge._`).catch(() => null);
+        }
+        emit({ lane, kind: "review", verdict, text, prUrl, commentUrl, ...receiptOf(result, t0) });
+        emit({ lane, kind: "done", status: "review-complete", noPr: true });
+      } catch (e: any) {
+        emit({ lane, kind: "status", text: "Reviewer error: " + (e?.message ?? e) });
+        emit({ lane, kind: "done", status: "error", noPr: true });
       } finally {
         res.write("event: end\ndata: {}\n\n");
         res.end();
