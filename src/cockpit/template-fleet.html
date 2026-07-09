@@ -281,7 +281,7 @@ function renderVerdict(name,e){
   const holder=el("verd-"+name); if(holder) holder.innerHTML=html;
   const aw=el("await-"+name); if(aw) aw.remove();
   if(fs.some((f)=>f.verdict==="ESCALATE") && !el("issue-"+name)){
-    const issue=ART.issues[name];
+    const issue=e.issueUrl||ART.issues[name];
     const d=document.createElement("div"); d.className="issuelink"; d.id="issue-"+name;
     d.innerHTML='Human review required'+(issue?' → <a href="'+issue+'" target="_blank" rel="noopener noreferrer">open issue ↗</a>':'');
     card.querySelector(".body").appendChild(d);

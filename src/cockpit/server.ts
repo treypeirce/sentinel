@@ -128,6 +128,51 @@ async function postPrComment(prUrl: string, body: string): Promise<string | null
   return d?.html_url ?? null;
 }
 
+/**
+ * File a GitHub issue for an escalated service via the API. Low-risk by design:
+ * - dedup: reuses an existing OPEN Sentinel issue in the repo instead of filing
+ *   a new one each run (no spam across rehearsal + demo).
+ * - returns null when GITHUB_PAT is missing or any call fails; the caller falls
+ *   back to the static pre-filed issue link, so the demo never breaks.
+ */
+const ESC_TITLE_PREFIX = "[Sentinel] Security review required";
+/** Per-repo issue URL filed this session: primary dedup (no API lag). */
+const ISSUE_CACHE: Record<string, string> = {};
+async function ensureEscalationIssue(repoUrl: string, findings: any[]): Promise<string | null> {
+  if (ISSUE_CACHE[repoUrl]) return ISSUE_CACHE[repoUrl];
+  const pat = process.env.GITHUB_PAT;
+  const m = repoUrl.match(/github\.com\/([^/]+)\/([^/]+?)(?:\.git)?$/);
+  if (!pat || !m) return null;
+  const owner = m[1], repo = m[2];
+  const headers = { authorization: `Bearer ${pat}`, accept: "application/vnd.github+json", "user-agent": "sentinel-cockpit" };
+  try {
+    const list = await fetch(`https://api.github.com/repos/${owner}/${repo}/issues?state=open&per_page=50`, { headers });
+    if (list.ok) {
+      const arr = (await list.json()) as any[];
+      const existing = Array.isArray(arr) && arr.find((i) => typeof i?.title === "string" && i.title.startsWith(ESC_TITLE_PREFIX) && !i.pull_request);
+      if (existing) { ISSUE_CACHE[repoUrl] = existing.html_url; return existing.html_url; }
+    }
+    const esc = findings.filter((f) => f.verdict === "ESCALATE");
+    const lines = [
+      "Sentinel routed the following finding(s) to human review (money-movement path, or the investigation was inconclusive). No code was changed.",
+      "",
+      ...esc.map((f) => `- **${f.package}${f.version ? "@" + f.version : ""}** (${f.cve ?? "advisory"}) — ${f.reason}`),
+    ];
+    for (const f of esc) for (const e of (f.evidence ?? [])) lines.push(`  - evidence: \`${e.file}${e.line ? ":" + e.line : ""}\`${e.note ? " · " + e.note : ""}`);
+    lines.push("", "_Filed automatically by Sentinel. A human owns the decision._");
+    const create = await fetch(`https://api.github.com/repos/${owner}/${repo}/issues`, {
+      method: "POST", headers,
+      body: JSON.stringify({ title: `${ESC_TITLE_PREFIX}: ${esc[0]?.package ?? "dependency"}`, body: lines.join("\n") }),
+    });
+    if (!create.ok) return null;
+    const d = (await create.json()) as any;
+    if (d?.html_url) ISSUE_CACHE[repoUrl] = d.html_url;
+    return d?.html_url ?? null;
+  } catch {
+    return null;
+  }
+}
+
 /** Dispatch a read-only reviewer agent for a PR and stream its work into a lane. */
 async function runReviewer(lane: string, repoUrl: string, prUrl: string, emit: (o: unknown) => void): Promise<void> {
   const apiKey = process.env.CURSOR_API_KEY;
@@ -266,11 +311,15 @@ const server = createServer((req, res) => {
             findings = out.parsed.data.findings;
           }
           collected[svc.name] = { service: svc.name, repoUrl: svc.repoUrl, findings };
-          emit({ lane, kind: "verdict", service: svc.name, durationMs: out.durationMs ?? out.elapsed, findings });
+          const issueUrl = findings.some((f: any) => f.verdict === "ESCALATE")
+            ? await ensureEscalationIssue(svc.repoUrl, findings).catch(() => null)
+            : null;
+          emit({ lane, kind: "verdict", service: svc.name, durationMs: out.durationMs ?? out.elapsed, findings, issueUrl });
         } catch (e: any) {
           const findings = [{ package: "(investigation error)", version: "", cve: null, verdict: "ESCALATE", reachable: null, evidence: [], reason: "Investigator error: routed to a human by default." }];
           collected[svc.name] = { service: svc.name, repoUrl: svc.repoUrl, findings };
-          emit({ lane, kind: "verdict", service: svc.name, durationMs: 0, findings });
+          const issueUrl = await ensureEscalationIssue(svc.repoUrl, findings).catch(() => null);
+          emit({ lane, kind: "verdict", service: svc.name, durationMs: 0, findings, issueUrl });
         }
       }));
 

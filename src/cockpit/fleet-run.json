@@ -9,7 +9,8 @@
         "acme-billing": "https://github.com/treypeirce/acme-billing/pull/1"
       },
       "issues": {
-        "acme-ledger": "https://github.com/treypeirce/acme-ledger/issues/1"
+        "acme-ledger": "https://github.com/treypeirce/acme-ledger/issues/1",
+        "acme-payments": "https://github.com/treypeirce/acme-payments/issues/5"
       }
     }
   },
