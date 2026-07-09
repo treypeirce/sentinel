@@ -16,7 +16,7 @@
  * only). The live cloud button appears only when this server reports a key.
  */
 import { createServer } from "node:http";
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync, existsSync, writeFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -37,6 +37,58 @@ Change only what this fix needs. Do not touch .github/** or .cursor/**. Do not m
 /** Last PR opened per repo URL during this server session (live fleet runs update it). */
 const LAST_PR: Record<string, string> = {};
 const DEFAULT_REVIEW_PR = "https://github.com/treypeirce/acme-billing/pull/1";
+
+/** Investigator verdicts from the most recent investigation (memory + disk). */
+const VERDICT_CACHE_PATH = () => join(ROOT, "investigation-cache.json");
+let VERDICTS: Record<string, any> | null = null;
+function loadVerdicts(): Record<string, any> | null {
+  if (VERDICTS) return VERDICTS;
+  try {
+    if (existsSync(VERDICT_CACHE_PATH())) { VERDICTS = JSON.parse(readFileSync(VERDICT_CACHE_PATH(), "utf8")); return VERDICTS; }
+  } catch { /* ignore */ }
+  return null;
+}
+
+function investigatorPrompt(service: string): string {
+  return `You are a READ-ONLY security investigator for the "${service}" service (this repository). Make NO code changes. Do not push. Do not open PRs.
+
+Investigate like an engineer:
+1. Find the vulnerable dependencies. Run \`npm audit --json\` (if it needs a lockfile, run \`npm install --package-lock-only\` first). Cross-check with package.json.
+2. Pick the up-to-3 most significant vulnerable packages.
+3. For EACH one, determine whether this service ACTUALLY USES it: search src/ for import/require of the package, and check whether the importing file is wired into the running app starting from src/index.ts.
+4. Apply policy:
+   - If the vulnerable package's usage sits under src/payments/, src/ledger/, or src/settlement/ (money movement), verdict = ESCALATE (a human must decide), regardless of fixability.
+   - If the package is declared in package.json but never imported anywhere in src/, verdict = SKIP (cite the proof: what you searched).
+   - If it is used, a fixed version exists, and it is not on a money path, verdict = FIX.
+   - If you are unsure, verdict = ESCALATE.
+
+Your FINAL message must be ONLY one fenced json block, exactly this schema, no prose before or after:
+\`\`\`json
+{
+  "service": "${service}",
+  "findings": [
+    { "package": "name", "version": "installed version", "cve": "CVE or GHSA id or null",
+      "verdict": "FIX" | "SKIP" | "ESCALATE", "reachable": true | false,
+      "evidence": [ { "file": "path", "line": 12 | null, "note": "short note" } ],
+      "reason": "one sentence, max 200 chars" }
+  ]
+}
+\`\`\``;
+}
+
+function parseVerdictText(text: string): { ok: boolean; data?: any; why?: string } {
+  const blocks = [...String(text).matchAll(/```json\s*([\s\S]*?)```/g)];
+  const raw = blocks.length ? blocks[blocks.length - 1][1] : String(text);
+  try {
+    const d = JSON.parse(raw);
+    if (!d || !Array.isArray(d.findings)) return { ok: false, why: "no findings array" };
+    const enums = new Set(["FIX", "SKIP", "ESCALATE"]);
+    for (const f of d.findings) if (!enums.has(f.verdict)) return { ok: false, why: "bad verdict enum" };
+    return { ok: true, data: d };
+  } catch (e: any) {
+    return { ok: false, why: "json parse: " + e.message };
+  }
+}
 
 function reviewPrompt(prNumber: number): string {
   return `You are a senior security reviewer. READ ONLY: do not modify code, do not push, do not open PRs.
@@ -74,6 +126,35 @@ async function postPrComment(prUrl: string, body: string): Promise<string | null
   if (!r.ok) return null;
   const d = (await r.json()) as any;
   return d?.html_url ?? null;
+}
+
+/** Dispatch a read-only reviewer agent for a PR and stream its work into a lane. */
+async function runReviewer(lane: string, repoUrl: string, prUrl: string, emit: (o: unknown) => void): Promise<void> {
+  const apiKey = process.env.CURSOR_API_KEY;
+  const target = parsePrUrl(prUrl);
+  if (!apiKey || !target) return;
+  const t0 = Date.now();
+  const { Agent } = await import("@cursor/sdk");
+  emit({ lane, kind: "status", text: `Dispatching REVIEWER agent for ${target.repo} PR #${target.num}…` });
+  const agent = await Agent.create({
+    apiKey, model: { id: MODEL },
+    cloud: { repos: [{ url: repoUrl, startingRef: "main" }], autoCreatePR: true },
+  });
+  emit({ lane, kind: "status", text: `Reviewer agent ${(agent as any).agentId ?? ""} dispatched · read-only` });
+  const run = await agent.send(reviewPrompt(target.num));
+  for await (const ev of run.stream() as AsyncIterable<any>) {
+    if (ev?.type === "status") emit({ lane, kind: "status", text: phaseLabel(ev.status ?? ev.state) });
+    else if (ev?.type === "assistant") { const t = extractText(ev); if (t) emit({ lane, kind: "assistant", text: t }); }
+    else if (ev?.type === "tool_call") emit({ lane, kind: "tool", tool: ev.tool ?? ev.name ?? "tool", detail: ev.detail ?? "" });
+  }
+  const result = (await run.wait().catch(() => null)) as any;
+  const text = String(result?.result ?? "").trim();
+  const verdict = /VERDICT:\s*APPROVE/i.test(text) ? "approve" : (/VERDICT:\s*REQUEST/i.test(text) ? "changes" : "review");
+  let commentUrl: string | null = null;
+  if (text) {
+    commentUrl = await postPrComment(prUrl, `**Sentinel · agent review of this PR**\n\n${text}\n\n_Posted automatically by the Sentinel reviewer agent (${MODEL}). A human still owns the merge._`).catch(() => null);
+  }
+  emit({ lane, kind: "review", verdict, text, prUrl, commentUrl, durationMs: result?.durationMs ?? (Date.now() - t0) });
 }
 
 function sse(res: any) {
@@ -130,7 +211,83 @@ const server = createServer((req, res) => {
   }
 
   if (url.startsWith("/api/health")) {
-    return send(res, 200, "application/json", JSON.stringify({ ok: true, live: !!process.env.CURSOR_API_KEY, repo: REPO }));
+    return send(res, 200, "application/json", JSON.stringify({ ok: true, live: !!process.env.CURSOR_API_KEY, verdicts: !!loadVerdicts(), repo: REPO }));
+  }
+
+  // Parallel read-only INVESTIGATION: one cloud agent per service decides the routes.
+  if (url.startsWith("/api/investigate")) {
+    const emit = sse(res);
+    const apiKey = process.env.CURSOR_API_KEY;
+    const fleetPath = join(ROOT, "fleet-queue.json");
+    if (!apiKey || !existsSync(fleetPath)) {
+      emit({ kind: "status", text: "No key or fleet manifest on the server." });
+      emit({ kind: "invdone", summary: { services: 0, findings: 0, FIX: 0, SKIP: 0, ESCALATE: 0 } });
+      return res.end();
+    }
+    const fleet = JSON.parse(readFileSync(fleetPath, "utf8")) as any;
+    const services = fleet.services as any[];
+    (async () => {
+      const { Agent } = await import("@cursor/sdk");
+      const collected: Record<string, any> = {};
+
+      async function investigateOnce(svc: any, attempt: number): Promise<any> {
+        const lane = svc.name;
+        const t0 = Date.now();
+        emit({ lane, kind: "status", text: (attempt > 1 ? "retry · " : "") + `Dispatching read-only investigator to ${lane}…` });
+        const agent = await Agent.create({
+          apiKey, model: { id: MODEL },
+          cloud: { repos: [{ url: svc.repoUrl, startingRef: "main" }], autoCreatePR: true },
+        });
+        emit({ lane, kind: "status", text: `Investigator ${(agent as any).agentId ?? ""} · read-only · isolated VM` });
+        const run = await agent.send(investigatorPrompt(svc.name));
+        for await (const ev of run.stream() as AsyncIterable<any>) {
+          if (ev?.type === "status") emit({ lane, kind: "status", text: phaseLabel(ev.status ?? ev.state) });
+          else if (ev?.type === "assistant") { const t = extractText(ev); if (t) emit({ lane, kind: "assistant", text: t }); }
+          else if (ev?.type === "tool_call") emit({ lane, kind: "tool", tool: ev.tool ?? ev.name ?? "tool", detail: ev.detail ?? "" });
+        }
+        const result = (await run.wait().catch(() => null)) as any;
+        const elapsed = Date.now() - t0;
+        if (result?.status !== "finished") {
+          if (attempt < 2 && elapsed < 30000) return investigateOnce(svc, attempt + 1); // transient infra flake: retry once
+          return { failed: true, elapsed };
+        }
+        const parsed = parseVerdictText(result?.result ?? "");
+        return { parsed, elapsed, durationMs: result?.durationMs ?? elapsed };
+      }
+
+      await Promise.all(services.map(async (svc: any) => {
+        const lane = svc.name;
+        try {
+          const out = await investigateOnce(svc, 1);
+          let findings: any[];
+          if (out.failed || !out.parsed?.ok) {
+            findings = [{ package: "(investigation inconclusive)", version: "", cve: null, verdict: "ESCALATE", reachable: null, evidence: [], reason: "Investigator returned no structured verdict; routed to a human by default." }];
+          } else {
+            findings = out.parsed.data.findings;
+          }
+          collected[svc.name] = { service: svc.name, repoUrl: svc.repoUrl, findings };
+          emit({ lane, kind: "verdict", service: svc.name, durationMs: out.durationMs ?? out.elapsed, findings });
+        } catch (e: any) {
+          const findings = [{ package: "(investigation error)", version: "", cve: null, verdict: "ESCALATE", reachable: null, evidence: [], reason: "Investigator error: routed to a human by default." }];
+          collected[svc.name] = { service: svc.name, repoUrl: svc.repoUrl, findings };
+          emit({ lane, kind: "verdict", service: svc.name, durationMs: 0, findings });
+        }
+      }));
+
+      const all = Object.values(collected).flatMap((s: any) => s.findings);
+      const summary = {
+        services: services.length, findings: all.length,
+        FIX: all.filter((f: any) => f.verdict === "FIX").length,
+        SKIP: all.filter((f: any) => f.verdict === "SKIP").length,
+        ESCALATE: all.filter((f: any) => f.verdict === "ESCALATE").length,
+      };
+      VERDICTS = collected;
+      try { writeFileSync(VERDICT_CACHE_PATH(), JSON.stringify(collected, null, 2)); } catch { /* ignore */ }
+      emit({ kind: "invdone", summary });
+      res.write("event: end\ndata: {}\n\n");
+      res.end();
+    })().catch(() => { try { res.end(); } catch { /* ignore */ } });
+    return;
   }
 
   if (url.startsWith("/api/queue")) {
@@ -209,7 +366,11 @@ const server = createServer((req, res) => {
       return res.end();
     }
     const fleet = JSON.parse(readFileSync(fleetPath, "utf8")) as any;
-    const fixServices = (fleet.services as any[]).filter((s) => s.report.findings.some((f: any) => f.route === "FIX"));
+    // Prefer investigator verdicts (the new brain); fall back to the old engine's routes.
+    const verdicts = loadVerdicts();
+    const fixServices = verdicts
+      ? (fleet.services as any[]).filter((s) => verdicts[s.name]?.findings?.some((f: any) => f.verdict === "FIX"))
+      : (fleet.services as any[]).filter((s) => s.report.findings.some((f: any) => f.route === "FIX"));
     (async () => {
       try {
         const { Agent } = await import("@cursor/sdk");
@@ -235,6 +396,10 @@ const server = createServer((req, res) => {
               const prUrl = result?.git?.branches?.[0]?.prUrl;
               if (prUrl) LAST_PR[svc.repoUrl] = prUrl;
               emit({ lane, kind: "done", status: result?.status ?? "complete", prUrl, ...receiptOf(result, t0) });
+              // Review is part of the pipeline: every fix PR gets an automatic agent review.
+              if (prUrl) await runReviewer(lane, svc.repoUrl, prUrl, emit).catch((e: any) => {
+                emit({ lane, kind: "status", text: "reviewer error: " + (e?.message ?? e) });
+              });
             } catch (e: any) {
               emit({ lane, kind: "status", text: "error: " + (e?.message ?? e) });
               emit({ lane, kind: "done", status: "error" });
@@ -268,34 +433,10 @@ const server = createServer((req, res) => {
       return res.end();
     }
     const lane = "acme-billing";
+    void target;
     (async () => {
-      const t0 = Date.now();
       try {
-        const { Agent } = await import("@cursor/sdk");
-        emit({ lane, kind: "status", text: `Dispatching REVIEWER agent for ${target.repo} PR #${target.num}…` });
-        // Note: autoCreatePR must be present for cloud runs (runs die with
-        // stream_unavailable without it). The reviewer makes no changes, so no
-        // PR is ever created; the read-only prompt is respected (verified).
-        const agent = await Agent.create({
-          apiKey,
-          model: { id: MODEL },
-          cloud: { repos: [{ url: billingRepo, startingRef: "main" }], autoCreatePR: true },
-        });
-        emit({ lane, kind: "status", text: `Reviewer agent ${(agent as any).agentId ?? ""} dispatched · read-only` });
-        const run = await agent.send(reviewPrompt(target.num));
-        for await (const ev of run.stream() as AsyncIterable<any>) {
-          if (ev?.type === "status") emit({ lane, kind: "status", text: phaseLabel(ev.status ?? ev.state) });
-          else if (ev?.type === "assistant") { const t = extractText(ev); if (t) emit({ lane, kind: "assistant", text: t }); }
-          else if (ev?.type === "tool_call") emit({ lane, kind: "tool", tool: ev.tool ?? ev.name ?? "tool", detail: ev.detail ?? "" });
-        }
-        const result = (await run.wait().catch(() => null)) as any;
-        const text = String(result?.result ?? "").trim();
-        const verdict = /VERDICT:\s*APPROVE/i.test(text) ? "approve" : (/VERDICT:\s*REQUEST/i.test(text) ? "changes" : "review");
-        let commentUrl: string | null = null;
-        if (text) {
-          commentUrl = await postPrComment(prUrl, `**Sentinel · agent review of this PR**\n\n${text}\n\n_Posted automatically by the Sentinel reviewer agent (${MODEL}). A human still owns the merge._`).catch(() => null);
-        }
-        emit({ lane, kind: "review", verdict, text, prUrl, commentUrl, ...receiptOf(result, t0) });
+        await runReviewer(lane, billingRepo, prUrl, emit);
         emit({ lane, kind: "done", status: "review-complete", noPr: true });
       } catch (e: any) {
         emit({ lane, kind: "status", text: "Reviewer error: " + (e?.message ?? e) });

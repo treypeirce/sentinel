@@ -81,6 +81,14 @@
   .crumb.sink{background:var(--redbg);color:var(--red)}
   .arr{color:var(--faint)}
 
+  .await{font:400 11px var(--mono);color:var(--faint)}
+  .verdicts{display:flex;flex-direction:column;gap:12px}
+  .verdicts:empty{display:none}
+  .invmeta{font:500 10px var(--mono);color:var(--faint)}
+  .freason{margin:5px 0 7px;font:400 11px var(--sans);color:var(--dim);line-height:1.5}
+  .finding .crumbs{margin-top:5px}
+  a.crumb:hover{color:var(--blue);text-decoration:none}
+
   .issuelink{font:500 12px var(--sans);color:var(--amber);background:var(--amberbg);border-radius:8px;padding:9px 12px}
   .issuelink a{color:var(--amber);font-weight:700}
   .prlink{display:none;font:500 12px var(--sans);color:var(--green);background:var(--greenbg);border-radius:8px;padding:9px 12px}
@@ -148,8 +156,8 @@
       <div><h1>Sentinel</h1><div class="tag">Fleet remediation cockpit</div></div>
     </div>
     <div class="actions">
-      <button class="btn" id="run-live" style="display:none">Run fleet on cloud</button>
-      <button class="btn ghost" id="run-review" style="display:none" title="A third cloud agent reviews the acme-billing fix PR, read-only, and posts its review on the PR">Review a PR with an agent</button>
+      <button class="btn" id="run-investigate" style="display:none" title="One read-only cloud agent per service · runs npm audit, reads the code, routes each finding">Investigate fleet</button>
+      <button class="btn" id="run-live" style="display:none" title="One cloud agent per FIX verdict · failing test → patch → tests green → draft PR · a reviewer agent follows">Dispatch fix agents</button>
       <button class="btn ghost" id="run-replay">Play recorded run</button>
       <button class="btn ghost" id="show-flow">How it works</button>
       <span class="gchip" title="beforeShellExecution hook denies: curl|sh · git push --force · rm -rf · .github/workflows edits · .env reads · publish"><b>✓</b> change-control hooks enforced</span>
@@ -163,38 +171,38 @@
   <div class="flow" id="flow">
     <div class="flowgrid">
       <div>
-        <div class="fsec">1 · Decide · before any agent runs</div>
+        <div class="fsec">1 · Flow · finding → merged fix</div>
         <div class="fpanel steps">
-          <div class="step"><span class="num">1</span><span class="t">Scan dependencies</span><span class="s">package.json · every service in the fleet</span></div>
-          <div class="step"><span class="num">2</span><span class="t">Match known advisories</span><span class="s">OSV.dev <em class="api">live api</em></span></div>
-          <div class="step"><span class="num">3</span><span class="t">Score the risk</span><span class="s">CVSS v3.1 severity · EPSS exploit odds via FIRST.org <em class="api">live api</em></span></div>
-          <div class="step"><span class="num">4</span><span class="t">Walk reachability</span><span class="s">import graph from src/index.ts · call path recorded</span></div>
-          <div class="step"><span class="num">5</span><span class="t">Apply policy</span><span class="s">money-path + fix-available rules</span></div>
-          <div class="step last"><span class="num">6</span><span class="t">Route</span><span class="s"><b class="rfix">FIX</b> · <b class="rskip">SKIP</b> · <b class="resc">ESCALATE</b></span></div>
+          <div class="step"><span class="num">1</span><span class="t">Investigate</span><span class="s">one read-only cloud agent per service · npm audit + reads the code · npm registry advisories <em class="api">live api</em> · queried inside the VM</span></div>
+          <div class="step"><span class="num">2</span><span class="t">Evidence</span><span class="s">file:line receipts land on this board</span></div>
+          <div class="step"><span class="num">3</span><span class="t">Route</span><span class="s"><b class="rfix">FIX</b> · <b class="rskip">SKIP</b> · <b class="resc">ESCALATE</b> · policy written in plain English in the agent's brief · unsure = human</span></div>
+          <div class="step"><span class="num">4</span><span class="t">Approve</span><span class="s">a human clicks dispatch · nothing runs without it</span></div>
+          <div class="step"><span class="num">5</span><span class="t">Fix</span><span class="s">cloud agent per service · failing test → patch → tests green → draft PR</span></div>
+          <div class="step last"><span class="num">6</span><span class="t">Review + merge</span><span class="s">a reviewer agent posts its review on the PR · a human merges</span></div>
         </div>
       </div>
       <div>
-        <div class="fsec">2 · Act · per route</div>
+        <div class="fsec">2 · Act · per verdict</div>
         <div class="acts">
           <div class="rcard">
             <div class="rhead"><span class="pill fix">FIX</span><span class="rtitle">Agent fixes it</span><span class="rn" id="fcnt-fix"></span></div>
-            <div class="rrow"><span class="rlab">trigger</span><span class="rval">reachable + a fixed version exists</span></div>
+            <div class="rrow"><span class="rlab">trigger</span><span class="rval">used at runtime + fix exists (agent verdict)</span></div>
             <div class="rrow"><span class="rlab">action</span><span class="rval">Cursor SDK cloud agent <em class="api">api</em> · isolated VM · failing test → patch → tests green</span></div>
             <div class="rrow"><span class="rlab">output</span><span class="rval">draft PR via GitHub <em class="api">api</em> · streams live into this cockpit</span></div>
-            <div class="rrow"><span class="rlab">gate</span><span class="rval"><b>human reviews and merges</b></span></div>
+            <div class="rrow"><span class="rlab">gate</span><span class="rval"><b>reviewer agent posts on the PR · human merges</b></span></div>
           </div>
           <div class="rcard">
             <div class="rhead"><span class="pill escalate">ESCALATE</span><span class="rtitle">Human takes over</span><span class="rn" id="fcnt-esc"></span></div>
-            <div class="rrow"><span class="rlab">trigger</span><span class="rval">money-movement path · policy match</span></div>
-            <div class="rrow"><span class="rlab">action</span><span class="rval">none · agent barred by policy</span></div>
+            <div class="rrow"><span class="rlab">trigger</span><span class="rval">money path or uncertain · agent defers to a human</span></div>
+            <div class="rrow"><span class="rlab">action</span><span class="rval">none · the agent's brief says stop</span></div>
             <div class="rrow"><span class="rlab">output</span><span class="rval">review issue via GitHub <em class="api">api</em></span></div>
             <div class="rrow"><span class="rlab">gate</span><span class="rval"><b>human decides the fix</b></span></div>
           </div>
           <div class="rcard">
             <div class="rhead"><span class="pill skip">SKIP</span><span class="rtitle">Deliberately left alone</span><span class="rn" id="fcnt-skip"></span></div>
-            <div class="rrow"><span class="rlab">trigger</span><span class="rval">unreachable · 0 import sites</span></div>
+            <div class="rrow"><span class="rlab">trigger</span><span class="rval">declared but never imported · agent cites proof</span></div>
             <div class="rrow"><span class="rlab">action</span><span class="rval">none by design · patching unused code adds risk</span></div>
-            <div class="rrow"><span class="rlab">output</span><span class="rval">evidence recorded on the finding</span></div>
+            <div class="rrow"><span class="rlab">output</span><span class="rval">evidence chips on this board</span></div>
             <div class="rrow"><span class="rlab">gate</span><span class="rval">none needed</span></div>
           </div>
         </div>
@@ -212,78 +220,83 @@ const RUN = __RUN_JSON__;
 const el = (id) => document.getElementById(id);
 const ART = (RUN.meta && RUN.meta.artifacts) || { prs: {}, issues: {} };
 
-function esc(s){return String(s).replace(/[&<>]/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));}
+function esc(s){return String(s).replace(/[&<>"]/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
 const routeOrder={FIX:0,ESCALATE:1,SKIP:2};
+const ro=(r)=>routeOrder[r]!==undefined?routeOrder[r]:9;
+let running=false, es=null, tick=null;
 
-function renderSummary(){
-  const s = FLEET.summary;
+function renderSummary(sum){
+  const services=(sum&&sum.services!=null)?sum.services:FLEET.summary.services;
+  const n=(k)=>(sum&&sum[k]!=null)?sum[k]:"–";
   el("summary").innerHTML =
-    '<div class="stat"><b>'+s.services+'</b><span>services</span></div>' +
-    '<div class="stat fix"><b>'+s.FIX+'</b><span>auto-fix</span></div>' +
-    '<div class="stat esc"><b>'+s.ESCALATE+'</b><span>escalate</span></div>' +
-    '<div class="stat skip"><b>'+s.SKIP+'</b><span>skip</span></div>' +
-    '<div class="stat"><b>'+s.findings+'</b><span>findings</span></div>';
-  el("foot").innerHTML = 'recorded run · '+esc(RUN.meta.model)
-    + ' · guardrail hooks active · verify: <span class="mono">npm run guardrail:check</span>';
-  el("fcnt-fix").textContent = s.FIX+" now";
-  el("fcnt-esc").textContent = s.ESCALATE+" now";
-  el("fcnt-skip").textContent = s.SKIP+" now";
-}
-
-function findingLine(f){
-  const r=f.route.toLowerCase();
-  const cvss=f.advisory.cvssScore!=null?f.advisory.cvssScore.toFixed(1):"?";
-  const epss=f.epss!=null?(f.epss*100).toFixed(f.epss<0.01?2:1)+"%":"n/a";
-  const risk=f.riskScore;
-  let reachHtml;
-  if(f.reachability.reachable && f.reachability.reachablePath){
-    const path=f.reachability.reachablePath;
-    const crumbs=path.map((p,i)=>{
-      const label=esc(p.split("/").pop());
-      const cls=i===0?"crumb entry":(i===path.length-1?"crumb sink":"crumb");
-      return '<span class="'+cls+'">'+label+'</span>';
-    }).join('<span class="arr">→</span>');
-    reachHtml='<div class="reach reachable"><span class="rlabel"><span class="rdot">●</span> Reachable</span><div class="crumbs">'+crumbs+'</div></div>';
-  } else {
-    reachHtml='<div class="reach declined"><span class="rlabel">✓ Not reachable</span><span class="evi">0 imports · '+f.reachability.scannedFiles+' files scanned</span></div>';
-  }
-  return '<div class="finding '+r+'">'
-    +'<div class="frow"><span class="pkg">'+f.dependency.name+'@'+f.dependency.version+'</span><span class="cve">'+(f.advisory.cve||f.advisory.id)+'</span><span class="ftag '+r+'">'+f.route+'</span></div>'
-    +'<div class="risk"><span class="rk" title="CVSS · severity if exploited (0-10)">CVSS <b>'+cvss+'</b></span><span class="rk" title="EPSS · probability of exploitation in the wild">EPSS <b>'+epss+'</b></span><span class="rk" title="Blended score that decides the route">risk <b>'+risk+'</b>/100</span><span class="riskbar"><span style="width:'+risk+'%"></span></span></div>'
-    +reachHtml
-    +'</div>';
+    '<div class="stat"><b>'+services+'</b><span>services</span></div>' +
+    '<div class="stat fix"><b>'+n("FIX")+'</b><span>auto-fix</span></div>' +
+    '<div class="stat esc"><b>'+n("ESCALATE")+'</b><span>escalate</span></div>' +
+    '<div class="stat skip"><b>'+n("SKIP")+'</b><span>skip</span></div>' +
+    '<div class="stat"><b>'+n("findings")+'</b><span>findings</span></div>';
 }
 
 function svcCard(svc){
-  const findings = svc.report.findings.slice().sort((a,b)=>routeOrder[a.route]-routeOrder[b.route]);
-  const routes = [...new Set(findings.map(f=>f.route))];
-  const cls = routes.includes("FIX") ? "fix" : (routes.includes("ESCALATE") ? "escalate" : "skip");
-  const pills = routes.map(r=>'<span class="pill '+r.toLowerCase()+'">'+r+'</span>').join("");
-  let body = findings.map(findingLine).join("");
+  return '<div class="svc" id="svc-'+svc.name+'"><div class="h"><div><div class="n">'+esc(svc.name)+'</div>'
+    +'<div class="r">'+esc(svc.repoUrl.replace("https://github.com/",""))+'</div></div><div class="pills" id="pills-'+svc.name+'"></div></div>'
+    +'<div class="body">'
+    +'<div class="await" id="await-'+svc.name+'">awaiting investigation</div>'
+    +'<div class="verdicts" id="verd-'+svc.name+'"></div>'
+    +'<div class="lanelog" id="lane-'+svc.name+'"><div class="idle">no agents dispatched yet</div></div>'
+    +'<div class="prlink" id="pr-'+svc.name+'"></div>'
+    +'</div></div>';
+}
+function renderGrid(){ el("grid").innerHTML = FLEET.services.map(svcCard).join(""); }
 
-  const hasFix = routes.includes("FIX");
-  if (hasFix) {
-    body += '<div class="lanelog" id="lane-'+svc.name+'"><div class="idle">awaiting run…</div></div>';
-    body += '<div class="prlink" id="pr-'+svc.name+'"></div>';
-  }
-  const escF = findings.find(f=>f.route==="ESCALATE");
-  if (escF) {
-    const issue = ART.issues[svc.name];
-    body += '<div class="issuelink">Human review required'+(issue?' → <a href="'+issue+'" target="_blank" rel="noopener noreferrer">open issue ↗</a>':'')+'</div>';
-  }
-  void hasFix;
-  return '<div class="svc '+cls+'"><div class="h"><div><div class="n">'+svc.name+'</div>'
-    +'<div class="r">'+svc.repoUrl.replace("https://github.com/","")+'</div></div><div class="pills">'+pills+'</div></div>'
-    +'<div class="body">'+body+'</div></div>';
+/* ---- investigator verdicts ---- */
+function verdictLine(f,repo){
+  const r=String(f.verdict||"").toLowerCase();
+  const chips=(f.evidence||[]).map((ev)=>{
+    const label=esc(ev.file+(ev.line?":"+ev.line:""));
+    const title=ev.note?' title="'+esc(ev.note)+'"':'';
+    if(!repo) return '<span class="crumb"'+title+'>'+label+'</span>';
+    const href=repo+"/blob/main/"+ev.file+(ev.line?"#L"+ev.line:"");
+    return '<a class="crumb" href="'+esc(href)+'" target="_blank" rel="noopener noreferrer"'+title+'>'+label+'</a>';
+  }).join("");
+  return '<div class="finding '+r+'">'
+    +'<div class="frow"><span class="pkg">'+esc(f.package)+'@'+esc(f.version)+'</span><span class="cve">'+esc(f.cve||"")+'</span><span class="ftag '+r+'">'+esc(f.verdict)+'</span></div>'
+    +(f.reason?'<div class="freason">'+esc(f.reason)+'</div>':'')
+    +(chips?'<div class="crumbs">'+chips+'</div>':'')
+    +'</div>';
 }
 
-function renderGrid(){
-  const order = FLEET.services.slice().sort((a,b)=>{
-    const ar = a.report.findings.some(f=>f.route==="FIX")?0:(a.report.findings.some(f=>f.route==="ESCALATE")?1:2);
-    const br = b.report.findings.some(f=>f.route==="FIX")?0:(b.report.findings.some(f=>f.route==="ESCALATE")?1:2);
-    return ar-br;
-  });
-  el("grid").innerHTML = order.map(svcCard).join("");
+function renderVerdict(name,e){
+  const card=el("svc-"+name); if(!card) return;
+  const svc=FLEET.services.find((s)=>s.name===name);
+  const repo=svc?svc.repoUrl:"";
+  const fs=(e.findings||[]).slice().sort((a,b)=>ro(a.verdict)-ro(b.verdict));
+  const routes=[...new Set(fs.map((f)=>f.verdict))].sort((a,b)=>ro(a)-ro(b));
+  const pills=el("pills-"+name);
+  if(pills) pills.innerHTML=routes.map((r)=>'<span class="pill '+String(r).toLowerCase()+'">'+esc(r)+'</span>').join("");
+  card.classList.remove("fix","escalate","skip");
+  if(routes.length) card.classList.add(routes.includes("FIX")?"fix":(routes.includes("ESCALATE")?"escalate":"skip"));
+  let html="";
+  if(typeof e.durationMs==="number") html+='<div class="invmeta">investigated in '+receipt({durationMs:e.durationMs})+'</div>';
+  html+=fs.length?fs.map((f)=>verdictLine(f,repo)).join(""):'<div class="invmeta">no findings</div>';
+  const holder=el("verd-"+name); if(holder) holder.innerHTML=html;
+  const aw=el("await-"+name); if(aw) aw.remove();
+  if(fs.some((f)=>f.verdict==="ESCALATE") && !el("issue-"+name)){
+    const issue=ART.issues[name];
+    const d=document.createElement("div"); d.className="issuelink"; d.id="issue-"+name;
+    d.innerHTML='Human review required'+(issue?' → <a href="'+issue+'" target="_blank" rel="noopener noreferrer">open issue ↗</a>':'');
+    card.querySelector(".body").appendChild(d);
+  }
+}
+
+function applyInvdone(e){
+  const s=(e&&e.summary)||{};
+  renderSummary(s);
+  if(s.FIX!=null) el("fcnt-fix").textContent=s.FIX+" now";
+  if(s.ESCALATE!=null) el("fcnt-esc").textContent=s.ESCALATE+" now";
+  if(s.SKIP!=null) el("fcnt-skip").textContent=s.SKIP+" now";
+  if((s.FIX|0)>0) el("run-live").style.display="";
+  if(tick){clearInterval(tick);tick=null;}
+  el("runmeta").textContent="investigated · dispatch ready";
 }
 
 /* ---- lane streaming ---- */
@@ -296,6 +309,7 @@ function toolText(e){const m={read:"read",write:"write",edit:"edit",shell:"$",re
 function addLn(L,html,cls){const d=document.createElement("div");d.className="ln "+(cls||"");d.innerHTML=html;L.log.appendChild(d);L.log.scrollTop=L.log.scrollHeight;return d;}
 
 function renderTo(name,e){
+  if(e.kind==="verdict"){ renderVerdict(e.service||name,e); return; }
   const L=laneFor(name); if(!L) return;
   if(e.kind!=="assistant") L.curA=null;
   if(e.kind!=="tool") L.lastT=null;
@@ -334,6 +348,12 @@ function renderTo(name,e){
   }
 }
 
+function handleEvent(e){
+  if(!e || !e.kind) return;
+  if(e.kind==="invdone"){ applyInvdone(e); return; }
+  if(e.lane) renderTo(e.lane,e);
+}
+
 function receipt(e){
   const parts=[];
   if(typeof e.durationMs==="number"){ const s=Math.round(e.durationMs/1000); parts.push(s>=60?Math.floor(s/60)+"m "+(s%60)+"s":s+"s"); }
@@ -342,18 +362,30 @@ function receipt(e){
 }
 
 /* ---- recorded replay ---- */
-let running=false;
 function playRecorded(){
   if(running) return; running=true;
   Object.keys(lane).forEach(k=>delete lane[k]);
   document.querySelectorAll(".prlink").forEach(p=>{p.className="prlink";p.innerHTML="";});
   el("runmeta").textContent="recorded · parallel";
   const tl=RUN.timeline; let i=0;
-  (function step(){ if(i>=tl.length){running=false;el("runmeta").textContent="recorded · done";return;} const e=tl[i++]; renderTo(e.lane,e); setTimeout(step,e.delay||600); })();
+  (function step(){ if(i>=tl.length){running=false;el("runmeta").textContent="recorded · done";return;} const e=tl[i++]; handleEvent(e); setTimeout(step,e.delay||600); })();
 }
 
-/* ---- live parallel cloud ---- */
-let es=null, tick=null;
+/* ---- live: investigators ---- */
+function runInvestigate(){
+  if(running) return; running=true;
+  const btn=el("run-investigate"); btn.disabled=true;
+  Object.keys(lane).forEach(k=>delete lane[k]);
+  const t0=Date.now(); el("runmeta").textContent="investigating · live · 0s";
+  tick=setInterval(()=>el("runmeta").textContent="investigating · live · "+Math.round((Date.now()-t0)/1000)+"s",1000);
+  es=new EventSource("/api/investigate");
+  const finish=()=>{ if(es){try{es.close();}catch(_){}} if(tick){clearInterval(tick);tick=null;} running=false; btn.disabled=false; };
+  es.onmessage=(m)=>{ let e; try{e=JSON.parse(m.data);}catch(_){return;} handleEvent(e); };
+  es.addEventListener("end",()=>{ if(tick) el("runmeta").textContent="investigated"; finish(); });
+  es.onerror=()=>{ el("runmeta").textContent="live unavailable · use recorded run"; finish(); };
+}
+
+/* ---- live: fix agents (+ automatic reviewer) ---- */
 function runLive(){
   if(running) return; running=true;
   Object.keys(lane).forEach(k=>delete lane[k]);
@@ -361,26 +393,13 @@ function runLive(){
   const t0=Date.now(); el("runmeta").textContent="cloud · live · 0s";
   tick=setInterval(()=>el("runmeta").textContent="cloud · live · "+Math.round((Date.now()-t0)/1000)+"s",1000);
   es=new EventSource("/api/run-fleet");
-  let doneCount=0; const fixCount=FLEET.services.filter(s=>s.report.findings.some(f=>f.route==="FIX")).length;
-  es.onmessage=(m)=>{ let e; try{e=JSON.parse(m.data);}catch(_){return;} if(e.lane) renderTo(e.lane,e); if(e.kind==="done"){ doneCount++; if(doneCount>=fixCount) finishLive(); } };
+  es.onmessage=(m)=>{ let e; try{e=JSON.parse(m.data);}catch(_){return;} handleEvent(e); };
   es.addEventListener("end",finishLive);
   es.onerror=()=>{ el("runmeta").textContent="live unavailable · use recorded run"; finishLive(); };
 }
 function finishLive(){ if(es){try{es.close();}catch(_){}} if(tick){clearInterval(tick);tick=null;} running=false; }
 
-async function checkLive(){ try{ const r=await fetch("/api/health"); if(!r.ok) return; const h=await r.json(); if(h.live){ el("run-live").style.display=""; el("run-review").style.display=""; } }catch(_){} }
-
-let reviewing=false;
-function runReview(){
-  if(reviewing) return; reviewing=true;
-  const btn=el("run-review"); btn.disabled=true;
-  el("runmeta").textContent="reviewer · live";
-  const src=new EventSource("/api/run-review");
-  const finish=()=>{ try{src.close();}catch(_){} reviewing=false; btn.disabled=false; el("runmeta").textContent="reviewer · done"; };
-  src.onmessage=(m)=>{ let e; try{e=JSON.parse(m.data);}catch(_){return;} if(e.lane) renderTo(e.lane,e); };
-  src.addEventListener("end",finish);
-  src.onerror=finish;
-}
+async function checkLive(){ try{ const r=await fetch("/api/health"); if(!r.ok) return; const h=await r.json(); if(h.live) el("run-investigate").style.display=""; if(h.verdicts) el("run-live").style.display=""; }catch(_){} }
 
 let flowOn=false;
 function toggleFlow(){
@@ -392,11 +411,12 @@ function toggleFlow(){
   b.classList.toggle("on",flowOn);
 }
 
-renderSummary();
+renderSummary(null);
 renderGrid();
-el("run-replay").addEventListener("click",playRecorded);
+el("foot").innerHTML='investigators, fixers, and a reviewer on Cursor cloud · guardrail hooks active · verify: <span class="mono">npm run guardrail:check</span>';
+el("run-investigate").addEventListener("click",runInvestigate);
 el("run-live").addEventListener("click",runLive);
-el("run-review").addEventListener("click",runReview);
+el("run-replay").addEventListener("click",playRecorded);
 el("show-flow").addEventListener("click",toggleFlow);
 checkLive();
 </script>

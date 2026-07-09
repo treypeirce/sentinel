@@ -76,33 +76,31 @@
     <div class="zone">
       <div class="zhead">
         <div class="zrole"><span class="n">1</span>DECIDE</div>
-        <div class="zsub">your laptop · what I built</div>
+        <div class="zsub">Cursor cloud · read-only investigator agents <em class="api">api</em></div>
       </div>
       <div class="zcard">
-        <div class="t">Triage engine</div>
-        <div class="l">scans <b>package.json</b> across the fleet</div>
-        <div class="l">CVSS v3.1 math · risk score per finding</div>
-        <div class="l">reachability walk · records the call path</div>
-        <div class="l">policy rules → <b>FIX · SKIP · ESCALATE</b></div>
+        <div class="t">Investigator agents <span class="chip par">× 4 in parallel</span></div>
+        <div class="l">one read-only agent per service · isolated VM</div>
+        <div class="l">runs <b>npm audit</b> · reads the actual code</div>
+        <div class="l">policy in plain English · money path → human</div>
+        <div class="l"><b>verdict + file:line evidence</b> in ~1 min</div>
       </div>
       <div class="zcard feeds">
-        <div class="t">Security feeds</div>
-        <div class="l">OSV.dev · recall database <em class="api">live api</em></div>
-        <div class="l">FIRST.org · EPSS exploit odds <em class="api">live api</em></div>
-        <div class="divl"></div>
-        <div class="l">answers cached to disk · scan works offline</div>
+        <div class="t">Advisory data</div>
+        <div class="l">npm registry advisories · queried inside the VM <em class="api">live api</em></div>
+        <div class="l">no scores invented · evidence over opinion</div>
       </div>
       <div class="zcard">
         <div class="t">Cockpit + server</div>
         <div class="l">the board you are watching</div>
-        <div class="l">dispatches work · receives the live stream</div>
+        <div class="l">dispatch gate · live agent streams</div>
         <div class="l">localhost:4317</div>
       </div>
     </div>
 
     <div class="conn">
       <span class="a">→</span>
-      <span class="cl">work order · Cursor SDK · live stream back</span>
+      <span class="cl">human approves · dispatch work order · live stream back</span>
       <span class="a">←</span>
     </div>
 
@@ -119,6 +117,11 @@
         <div class="l">destroyed when done</div>
       </div>
       <div class="zcard">
+        <div class="t">Reviewer agent</div>
+        <div class="l">read-only · reviews each fix PR</div>
+        <div class="l">posts its review on the PR · ~1 min</div>
+      </div>
+      <div class="zcard">
         <div class="t">Guardrail hooks <span class="chip deny">deny-capable</span></div>
         <div class="l">screen every shell command before it runs</div>
         <div class="l">block: curl|sh · force-push · secret reads · CI edits</div>
@@ -128,7 +131,7 @@
 
     <div class="conn">
       <span class="a">→</span>
-      <span class="cl">draft PRs from agents · review issue from engine</span>
+      <span class="cl">draft PRs + reviews from agents · escalation issue from the cockpit</span>
     </div>
 
     <div class="zone">
@@ -159,7 +162,7 @@
 
   </div>
 
-  <footer>decide on the laptop · act in Cursor cloud VMs · land in GitHub behind a human gate</footer>
+  <footer>investigate on Cursor cloud · fix on Cursor cloud · land in GitHub behind a human gate</footer>
 </div>
 </body>
 </html>
