@@ -60,7 +60,7 @@ function trimLane(events, lane, opts) {
       const t = String(e.text ?? "").trim();
       if (!opts.keepAssistant || t.length < 60) continue;
       kept.push({ ...e, text: t.length > 200 ? t.slice(0, 197) + "…" : t });
-    } else if (["verdict", "test", "plan", "done", "review"].includes(e.kind)) {
+    } else if (["routing", "verdict", "test", "plan", "done", "review"].includes(e.kind)) {
       kept.push(e);
     }
   }
@@ -103,10 +103,15 @@ const fleetTrimmed = fleetLanes.map((lane) =>
 );
 timeline = timeline.concat(interleave(fleetTrimmed, 620));
 
+const models = [...new Set(timeline
+  .filter((event) => event.kind === "routing")
+  .map((event) => event.receipt?.sdkResolvedModel?.id ?? event.receipt?.selectedModel)
+  .filter(Boolean))];
 const out = {
   meta: {
     mode: "recorded",
-    model: "composer-2.5",
+    model: models.length === 1 ? models[0] : (models.length ? "mixed" : "not recorded"),
+    models,
     note: "Recorded from real runs: parallel investigation, parallel fixes, automatic agent reviews.",
     artifacts: { prs: CANON_PR, issues: ISSUES },
   },

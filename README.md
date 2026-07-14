@@ -2,14 +2,14 @@
 
 > Governed vulnerability triage — **fix what's reachable, skip what isn't, escalate what's sensitive.**
 
-Sentinel is the judgment layer of an agent-driven remediation pipeline. It takes
-a stream of dependency advisories and decides, deterministically, what a coding
-agent should do about each one — **before any model is invoked.** The agent only
-ever runs on findings routed to `FIX`.
+Sentinel is a governed agent-remediation pipeline. Advisory Cursor investigators
+(no automatic PR) inspect each service and return evidence-backed `FIX`, `SKIP`, or `ESCALATE`
+verdicts. A human dispatches approved fixes, every fix returns a draft pull
+request, a separate reviewer agent checks the result, and a human owns merge.
 
-This repo is **Phase 2**: the deterministic scorer + reachability gate + policy
-router. The cockpit UI and the Cursor-SDK agent runner build on the `queue.json`
-it emits.
+The deterministic scorer and reachability gate remain as the manifest generator
+and offline fallback. They no longer replace the investigator agents in the live
+fleet workflow.
 
 ```
 $ npm run triage
@@ -98,6 +98,39 @@ The triage engine decides *what* to do. The agent runner does it — but only fo
 > The triage **engine** is zero-dependency. The **runner** uses the official
 > `@cursor/sdk`, so it needs `npm install` and a `CURSOR_API_KEY`.
 
+### Model routing
+
+Sentinel selects the model before each SDK dispatch from a small, versioned
+policy in `src/agent/modelRouting.ts`:
+
+- **FIX → Composer 2.5 Fast** — the task is already bounded: reproduce one
+  finding, apply the smallest patch, run tests, stop.
+- **INVESTIGATE → Fable 5 High** — reachability, uncertainty, and sensitive-path
+  judgment require deeper reasoning.
+- **REVIEW → Fable 5 High** — an independent security judgment deserves the
+  deeper tier.
+
+Before dispatch, Sentinel verifies both models and parameter variants against the
+Cursor account catalog. Missing, blocked, or unapproved models stop the run; deep
+work never silently downgrades to the easy tier. Every live event stream includes
+a routing receipt with the work kind, tier, requested model, selected model,
+override source, and the effective SDK model when available.
+
+Optional emergency overrides are allowlisted and visible:
+
+```bash
+SENTINEL_MODEL_EASY=composer-2.5
+SENTINEL_MODEL_DEEP=claude-fable-5
+SENTINEL_MODEL=claude-fable-5       # force every lane; blocked across tiers by default
+SENTINEL_BREAK_GLASS=1              # explicitly allow that cross-tier override
+```
+
+Overrides are printed in routing receipts. Without break-glass, the easy tier can
+use only Composer and the deep tier can use only Fable.
+
+Fable can require an administrator-approved data-retention policy. Do not enable
+the deep route for data classes that are not approved for that model.
+
 ```bash
 npm install                   # pulls @cursor/sdk
 export CURSOR_API_KEY="…"     # from Cursor Dashboard → API Keys
@@ -138,8 +171,13 @@ denial firing, the diff, and the PR link.
 ```bash
 npm run triage           # produce queue.json
 npm run cockpit:build    # bake queue + recorded run into public/cockpit.html
-npm run cockpit          # serve http://localhost:4317  (also exposes /api/stream SSE)
+npm run cockpit          # serve http://127.0.0.1:4317  (also exposes /api/stream SSE)
 ```
+
+The cockpit launches paid agents and is intentionally demo-only. It binds to
+loopback by default and refuses remote exposure unless `SENTINEL_ALLOW_REMOTE=1`
+is set in a separately protected environment. Do not expose its run endpoints to
+an untrusted network.
 
 **Why it's built this way:** `public/cockpit.html` is fully self-contained — it
 embeds the real queue and a recorded remediation run and animates the replay

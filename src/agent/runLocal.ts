@@ -9,12 +9,13 @@
  *   RunWithCredentials(skillName="Cursor Agent Key",
  *     command="node /agent/workspace/sentinel/src/agent/runLocal.ts --target <working-copy>")
  */
-import { Agent } from "@cursor/sdk";
+import { Agent, Cursor } from "@cursor/sdk";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { triage } from "../triage.ts";
 import { buildFixPrompt } from "./prompt.ts";
 import { renderEvent } from "./events.ts";
+import { planModelRoute, resolveModelRoute, withActualModel } from "./modelRouting.ts";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, "..", "..");
@@ -34,11 +35,19 @@ async function main() {
   }
 
   const target = resolve(process.cwd(), arg("--target") ?? resolve(ROOT, "..", "acme-payments"));
-  const model = process.env.SENTINEL_MODEL ?? "composer-2.5";
+  const route = resolveModelRoute(
+    planModelRoute("fix"),
+    await Cursor.models.list({ apiKey }),
+  );
 
   console.log(`\n  SENTINEL · agent runner (local)`);
   console.log(`  target ${target}`);
-  console.log(`  model  ${model}\n`);
+  renderEvent({ type: "routing", receipt: route.receipt });
+  if (!route.selection) {
+    console.error(`Model routing blocked: ${route.receipt.blockedReason}`);
+    process.exit(2);
+  }
+  console.log();
 
   const report = await triage(target);
   const fixes = report.findings.filter((f) => f.route === "FIX");
@@ -52,7 +61,7 @@ async function main() {
       `(${finding.advisory.cve ?? finding.advisory.id}) → upgrade to ${finding.advisory.fixedVersion}\n`,
   );
 
-  const agent = await Agent.create({ apiKey, model: { id: model }, local: { cwd: target } });
+  const agent = await Agent.create({ apiKey, model: route.selection, local: { cwd: target } });
   const run = await agent.send(buildFixPrompt(finding));
 
   for await (const event of run.stream() as AsyncIterable<any>) {
@@ -61,6 +70,7 @@ async function main() {
 
   try {
     const result = (await run.wait()) as any;
+    renderEvent({ type: "routing", receipt: withActualModel(route.receipt, result?.model) });
     console.log(
       `\n\n  done — status ${result?.status ?? "?"}` +
         (result?.durationMs ? `, ${Math.round(result.durationMs / 1000)}s` : ""),

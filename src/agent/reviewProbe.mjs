@@ -1,8 +1,12 @@
 // Debug probe: dispatch the reviewer agent directly and dump raw events + result.
-import { Agent } from "@cursor/sdk";
+import { Agent, Cursor } from "@cursor/sdk";
+import { planModelRoute, resolveModelRoute, routingSummary } from "./modelRouting.ts";
 
 const apiKey = process.env.CURSOR_API_KEY;
 if (!apiKey) { console.error("no key"); process.exit(1); }
+const route = resolveModelRoute(planModelRoute("review"), await Cursor.models.list({ apiKey }));
+if (!route.selection) { console.error("routing blocked:", route.receipt.blockedReason); process.exit(2); }
+console.log("routing:", routingSummary(route.receipt));
 
 const prompt = `You are a senior security reviewer. READ ONLY: do not modify code, do not push, do not open PRs.
 Steps:
@@ -17,8 +21,8 @@ VERDICT: APPROVE   (or: VERDICT: REQUEST CHANGES)
 
 const agent = await Agent.create({
   apiKey,
-  model: { id: process.env.SENTINEL_MODEL ?? "composer-2.5" },
-  cloud: { repos: [{ url: "https://github.com/treypeirce/acme-billing", startingRef: "main" }], autoCreatePR: true },
+  model: route.selection,
+  cloud: { repos: [{ url: "https://github.com/treypeirce/acme-billing", startingRef: "main" }], autoCreatePR: false },
 });
 console.log("agent:", agent.agentId ?? "(no id)");
 const run = await agent.send(prompt);

@@ -2,6 +2,10 @@
   "meta": {
     "mode": "recorded",
     "model": "composer-2.5",
+    "models": [
+      "composer-2.5"
+    ],
+    "routingPolicy": "Recorded before task-aware model routing; current live policy uses Composer for fixes and Fable for investigation/review.",
     "note": "Recorded from real runs: parallel investigation, parallel fixes, automatic agent reviews.",
     "artifacts": {
       "prs": {
@@ -12,79 +16,148 @@
         "acme-ledger": "https://github.com/treypeirce/acme-ledger/issues/1",
         "acme-payments": "https://github.com/treypeirce/acme-payments/issues/5"
       }
-    }
+    },
+    "routingReceipts": "Reconstructed from the recorded run model metadata; current live routing policy is shown separately."
   },
   "timeline": [
     {
       "lane": "acme-payments",
+      "kind": "routing",
+      "receipt": {
+        "version": 1,
+        "status": "selected",
+        "workKind": "investigate",
+        "tier": "legacy",
+        "reason": "recorded-before-task-aware-routing",
+        "requestedModel": "composer-2.5",
+        "selectedModel": "composer-2.5",
+        "params": [],
+        "source": "recorded-run",
+        "catalog": "unverified"
+      },
+      "delay": 220
+    },
+    {
+      "lane": "acme-payments",
       "kind": "status",
-      "text": "Dispatching read-only investigator to acme-payments…",
+      "text": "Dispatching advisory investigator to acme-payments\u2026",
       "delay": 520
     },
     {
       "lane": "acme-billing",
+      "kind": "routing",
+      "receipt": {
+        "version": 1,
+        "status": "selected",
+        "workKind": "investigate",
+        "tier": "legacy",
+        "reason": "recorded-before-task-aware-routing",
+        "requestedModel": "composer-2.5",
+        "selectedModel": "composer-2.5",
+        "params": [],
+        "source": "recorded-run",
+        "catalog": "unverified"
+      },
+      "delay": 220
+    },
+    {
+      "lane": "acme-billing",
       "kind": "status",
-      "text": "Dispatching read-only investigator to acme-billing…",
+      "text": "Dispatching advisory investigator to acme-billing\u2026",
       "delay": 557
     },
     {
       "lane": "acme-notifications",
+      "kind": "routing",
+      "receipt": {
+        "version": 1,
+        "status": "selected",
+        "workKind": "investigate",
+        "tier": "legacy",
+        "reason": "recorded-before-task-aware-routing",
+        "requestedModel": "composer-2.5",
+        "selectedModel": "composer-2.5",
+        "params": [],
+        "source": "recorded-run",
+        "catalog": "unverified"
+      },
+      "delay": 220
+    },
+    {
+      "lane": "acme-notifications",
       "kind": "status",
-      "text": "Dispatching read-only investigator to acme-notifications…",
+      "text": "Dispatching advisory investigator to acme-notifications\u2026",
       "delay": 594
     },
     {
       "lane": "acme-ledger",
+      "kind": "routing",
+      "receipt": {
+        "version": 1,
+        "status": "selected",
+        "workKind": "investigate",
+        "tier": "legacy",
+        "reason": "recorded-before-task-aware-routing",
+        "requestedModel": "composer-2.5",
+        "selectedModel": "composer-2.5",
+        "params": [],
+        "source": "recorded-run",
+        "catalog": "unverified"
+      },
+      "delay": 220
+    },
+    {
+      "lane": "acme-ledger",
       "kind": "status",
-      "text": "Dispatching read-only investigator to acme-ledger…",
+      "text": "Dispatching advisory investigator to acme-ledger\u2026",
       "delay": 631
     },
     {
       "lane": "acme-payments",
       "kind": "status",
-      "text": "Investigator bc-0ae1f4c2-3957-4699-af80-4d9f94253dc2 · read-only · isolated VM",
+      "text": "Investigator bc-0ae1f4c2-3957-4699-af80-4d9f94253dc2 \u00b7 advisory \u00b7 no automatic PR",
       "delay": 668
     },
     {
       "lane": "acme-billing",
       "kind": "status",
-      "text": "Investigator bc-c8ec8098-1170-4235-9ce5-861e096b8c94 · read-only · isolated VM",
+      "text": "Investigator bc-c8ec8098-1170-4235-9ce5-861e096b8c94 \u00b7 advisory \u00b7 no automatic PR",
       "delay": 705
     },
     {
       "lane": "acme-notifications",
       "kind": "status",
-      "text": "Investigator bc-51542c3b-110e-464d-9665-fe556da2bed5 · read-only · isolated VM",
+      "text": "Investigator bc-51542c3b-110e-464d-9665-fe556da2bed5 \u00b7 advisory \u00b7 no automatic PR",
       "delay": 742
     },
     {
       "lane": "acme-ledger",
       "kind": "status",
-      "text": "Investigator bc-f062e13b-68ac-478d-81ce-69f12853a87f · read-only · isolated VM",
+      "text": "Investigator bc-f062e13b-68ac-478d-81ce-69f12853a87f \u00b7 advisory \u00b7 no automatic PR",
       "delay": 779
     },
     {
       "lane": "acme-payments",
       "kind": "status",
-      "text": "retry · Dispatching read-only investigator to acme-payments…",
+      "text": "retry \u00b7 Dispatching advisory investigator to acme-payments\u2026",
       "delay": 556
     },
     {
       "lane": "acme-billing",
       "kind": "status",
-      "text": "Agent running on Cursor: cloning, reading, testing, patching…",
+      "text": "Agent running on Cursor: cloning, reading, testing, patching\u2026",
       "delay": 593
     },
     {
       "lane": "acme-notifications",
       "kind": "status",
-      "text": "Agent running on Cursor: cloning, reading, testing, patching…",
+      "text": "Agent running on Cursor: cloning, reading, testing, patching\u2026",
       "delay": 630
     },
     {
       "lane": "acme-ledger",
       "kind": "status",
-      "text": "Agent running on Cursor: cloning, reading, testing, patching…",
+      "text": "Agent running on Cursor: cloning, reading, testing, patching\u2026",
       "delay": 667
     },
     {
@@ -299,7 +372,7 @@
             {
               "file": "src/",
               "line": null,
-              "note": "rg vitest|vite|esbuild under src/ — no matches"
+              "note": "rg vitest|vite|esbuild under src/ \u2014 no matches"
             },
             {
               "file": "test/billing.test.ts",
@@ -329,7 +402,7 @@
             {
               "file": "src/app.ts",
               "line": 2,
-              "note": "index.ts→app.ts wires requireAuth and issueSessionToken into running app"
+              "note": "index.ts\u2192app.ts wires requireAuth and issueSessionToken into running app"
             }
           ],
           "reason": "Used on auth hot path for invoice routes; fix 9.0.3 available; usage not under payments/ledger/settlement."
@@ -349,12 +422,12 @@
             {
               "file": "src/",
               "line": null,
-              "note": "rg vitest|vite|esbuild under src/ — no matches"
+              "note": "rg vitest|vite|esbuild under src/ \u2014 no matches"
             },
             {
               "file": "src/index.ts",
               "line": 1,
-              "note": "runtime chain index.ts→app.ts has no vite import"
+              "note": "runtime chain index.ts\u2192app.ts has no vite import"
             }
           ],
           "reason": "Transitive dev-only vitest dependency with no src/ imports; not reachable in production runtime."
@@ -443,14 +516,48 @@
     },
     {
       "lane": "acme-payments",
+      "kind": "routing",
+      "receipt": {
+        "version": 1,
+        "status": "selected",
+        "workKind": "fix",
+        "tier": "easy",
+        "reason": "recorded-before-task-aware-routing",
+        "requestedModel": "composer-2.5",
+        "selectedModel": "composer-2.5",
+        "params": [],
+        "source": "recorded-run",
+        "catalog": "unverified"
+      },
+      "delay": 220
+    },
+    {
+      "lane": "acme-payments",
       "kind": "status",
-      "text": "Dispatching cloud agent to acme-payments…",
+      "text": "Dispatching cloud agent to acme-payments\u2026",
       "delay": 620
     },
     {
       "lane": "acme-billing",
+      "kind": "routing",
+      "receipt": {
+        "version": 1,
+        "status": "selected",
+        "workKind": "fix",
+        "tier": "easy",
+        "reason": "recorded-before-task-aware-routing",
+        "requestedModel": "composer-2.5",
+        "selectedModel": "composer-2.5",
+        "params": [],
+        "source": "recorded-run",
+        "catalog": "unverified"
+      },
+      "delay": 220
+    },
+    {
+      "lane": "acme-billing",
       "kind": "status",
-      "text": "Dispatching cloud agent to acme-billing…",
+      "text": "Dispatching cloud agent to acme-billing\u2026",
       "delay": 657
     },
     {
@@ -468,13 +575,13 @@
     {
       "lane": "acme-payments",
       "kind": "status",
-      "text": "Agent running on Cursor: cloning, reading, testing, patching…",
+      "text": "Agent running on Cursor: cloning, reading, testing, patching\u2026",
       "delay": 768
     },
     {
       "lane": "acme-billing",
       "kind": "status",
-      "text": "Agent running on Cursor: cloning, reading, testing, patching…",
+      "text": "Agent running on Cursor: cloning, reading, testing, patching\u2026",
       "delay": 805
     },
     {
@@ -616,7 +723,7 @@
     {
       "lane": "acme-payments",
       "kind": "assistant",
-      "text": "The reproduction test fails as expected — HS384 tokens are accepted. Applying the fix next.",
+      "text": "The reproduction test fails as expected \u2014 HS384 tokens are accepted. Applying the fix next.",
       "delay": 802
     },
     {
@@ -634,26 +741,43 @@
     {
       "lane": "acme-billing",
       "kind": "assistant",
-      "text": "Remediated **CVE-2022-23539** (weak JWT verification in `jsonwebtoken@8.5.1`). Draft PR: https://github.com/treypeirce/acme-billing/pull/2\n\n### 1. Reproduction test (failed on vulnerable code)\n\nAdd…",
+      "text": "Remediated **CVE-2022-23539** (weak JWT verification in `jsonwebtoken@8.5.1`). Draft PR: https://github.com/treypeirce/acme-billing/pull/2\n\n### 1. Reproduction test (failed on vulnerable code)\n\nAdd\u2026",
       "delay": 653
     },
     {
       "lane": "acme-payments",
       "kind": "assistant",
-      "text": "code)\n\nAdded a regression test in `test/auth.test.ts` that forges a token with `HS384` (while the app issues `HS256` tokens). On the old code, `requireAuth` accepted it and returned **201**; the te…",
+      "text": "code)\n\nAdded a regression test in `test/auth.test.ts` that forges a token with `HS384` (while the app issues `HS256` tokens). On the old code, `requireAuth` accepted it and returned **201**; the te\u2026",
       "delay": 690
     },
     {
       "lane": "acme-billing",
       "kind": "status",
-      "text": "Run finished — opening pull request",
+      "text": "Run finished \u2014 opening pull request",
       "delay": 727
     },
     {
       "lane": "acme-payments",
       "kind": "status",
-      "text": "Run finished — opening pull request",
+      "text": "Run finished \u2014 opening pull request",
       "delay": 764
+    },
+    {
+      "lane": "acme-billing",
+      "kind": "routing",
+      "receipt": {
+        "version": 1,
+        "status": "selected",
+        "workKind": "fix",
+        "tier": "easy",
+        "reason": "recorded-before-task-aware-routing",
+        "requestedModel": "composer-2.5",
+        "selectedModel": "composer-2.5",
+        "params": [],
+        "source": "recorded-run",
+        "catalog": "unverified"
+      },
+      "delay": 180
     },
     {
       "lane": "acme-billing",
@@ -665,6 +789,23 @@
     },
     {
       "lane": "acme-payments",
+      "kind": "routing",
+      "receipt": {
+        "version": 1,
+        "status": "selected",
+        "workKind": "fix",
+        "tier": "easy",
+        "reason": "recorded-before-task-aware-routing",
+        "requestedModel": "composer-2.5",
+        "selectedModel": "composer-2.5",
+        "params": [],
+        "source": "recorded-run",
+        "catalog": "unverified"
+      },
+      "delay": 180
+    },
+    {
+      "lane": "acme-payments",
       "kind": "done",
       "status": "finished",
       "prUrl": "https://github.com/treypeirce/acme-payments/pull/1",
@@ -673,9 +814,43 @@
     },
     {
       "lane": "acme-billing",
+      "kind": "routing",
+      "receipt": {
+        "version": 1,
+        "status": "selected",
+        "workKind": "review",
+        "tier": "legacy",
+        "reason": "recorded-before-task-aware-routing",
+        "requestedModel": "composer-2.5",
+        "selectedModel": "composer-2.5",
+        "params": [],
+        "source": "recorded-run",
+        "catalog": "unverified"
+      },
+      "delay": 220
+    },
+    {
+      "lane": "acme-billing",
       "kind": "assistant",
       "text": "Reviewing PR #2 as a read-only security review: fetching the branch and inspecting the diff.",
       "delay": 875
+    },
+    {
+      "lane": "acme-payments",
+      "kind": "routing",
+      "receipt": {
+        "version": 1,
+        "status": "selected",
+        "workKind": "review",
+        "tier": "legacy",
+        "reason": "recorded-before-task-aware-routing",
+        "requestedModel": "composer-2.5",
+        "selectedModel": "composer-2.5",
+        "params": [],
+        "source": "recorded-run",
+        "catalog": "unverified"
+      },
+      "delay": 220
     },
     {
       "lane": "acme-payments",
@@ -686,7 +861,7 @@
     {
       "lane": "acme-billing",
       "kind": "assistant",
-      "text": "VERDICT: APPROVE\n- correctness: Upgrading to jsonwebtoken 9.0.3 and passing `algorithms: [\"HS256\"]` to `jwt.verify` closes CVE-2022-23539 and matches HS256 issuance in `tokens.ts`.\n- test: Integrat…",
+      "text": "VERDICT: APPROVE\n- correctness: Upgrading to jsonwebtoken 9.0.3 and passing `algorithms: [\"HS256\"]` to `jwt.verify` closes CVE-2022-23539 and matches HS256 issuance in `tokens.ts`.\n- test: Integrat\u2026",
       "delay": 689
     },
     {
@@ -698,7 +873,7 @@
     {
       "lane": "acme-billing",
       "kind": "assistant",
-      "text": "No commit or push is needed here.\n\nThe security review was read-only: I only fetched PR #2, read the diff, and ran tests. I did not change any tracked files. The working tree is clean, and `prhead`…",
+      "text": "No commit or push is needed here.\n\nThe security review was read-only: I only fetched PR #2, read the diff, and ran tests. I did not change any tracked files. The working tree is clean, and `prhead`\u2026",
       "delay": 763
     },
     {
@@ -706,6 +881,23 @@
       "kind": "assistant",
       "text": "I'll run the auth tests on the PR branch to confirm the regression test passes.",
       "delay": 800
+    },
+    {
+      "lane": "acme-billing",
+      "kind": "routing",
+      "receipt": {
+        "version": 1,
+        "status": "selected",
+        "workKind": "review",
+        "tier": "legacy",
+        "reason": "recorded-before-task-aware-routing",
+        "requestedModel": "composer-2.5",
+        "selectedModel": "composer-2.5",
+        "params": [],
+        "source": "recorded-run",
+        "catalog": "unverified"
+      },
+      "delay": 180
     },
     {
       "lane": "acme-billing",
@@ -720,20 +912,37 @@
     {
       "lane": "acme-payments",
       "kind": "assistant",
-      "text": "VERDICT: APPROVE\n- correctness: `{ algorithms: [\"HS256\"] }` on `jwt.verify` plus jsonwebtoken 9.x closes algorithm-confusion on the auth hot path; token issuance already uses HS256.\n- test: Integra…",
+      "text": "VERDICT: APPROVE\n- correctness: `{ algorithms: [\"HS256\"] }` on `jwt.verify` plus jsonwebtoken 9.x closes algorithm-confusion on the auth hot path; token issuance already uses HS256.\n- test: Integra\u2026",
       "delay": 874
     },
     {
       "lane": "acme-payments",
       "kind": "assistant",
-      "text": "Checking git state — the prior task was read-only, so I'll only commit or push if there's appropriate work to publish.",
+      "text": "Checking git state \u2014 the prior task was read-only, so I'll only commit or push if there's appropriate work to publish.",
       "delay": 651
     },
     {
       "lane": "acme-payments",
       "kind": "assistant",
-      "text": "No commit or push is needed here. The prior task was a read-only security review of PR #3, with explicit instructions not to modify code, push, or open PRs.\n\nThe repo is on the fetched `prhead` bra…",
+      "text": "No commit or push is needed here. The prior task was a read-only security review of PR #3, with explicit instructions not to modify code, push, or open PRs.\n\nThe repo is on the fetched `prhead` bra\u2026",
       "delay": 688
+    },
+    {
+      "lane": "acme-payments",
+      "kind": "routing",
+      "receipt": {
+        "version": 1,
+        "status": "selected",
+        "workKind": "review",
+        "tier": "legacy",
+        "reason": "recorded-before-task-aware-routing",
+        "requestedModel": "composer-2.5",
+        "selectedModel": "composer-2.5",
+        "params": [],
+        "source": "recorded-run",
+        "catalog": "unverified"
+      },
+      "delay": 180
     },
     {
       "lane": "acme-payments",

@@ -4,33 +4,133 @@
     "model": "composer-2.5",
     "mode": "recorded",
     "note": "Mirrors the real cloud run that opened PR #1 on treypeirce/acme-payments (agent bc-5196cc67).",
-    "finding": "jsonwebtoken@8.5.1 · CVE-2022-23539"
+    "finding": "jsonwebtoken@8.5.1 \u00b7 CVE-2022-23539"
   },
   "events": [
-    { "kind": "status", "text": "Cloud agent started · composer-2.5 · treypeirce/acme-payments", "delay": 350 },
-    { "kind": "plan", "text": "Reproduce the weak JWT verification with a failing test, then upgrade jsonwebtoken to 9 and restrict verify() to HS256, then prove the suite is green. Change only what this fix needs.", "delay": 950 },
-    { "kind": "tool", "tool": "read", "detail": "src/middleware/auth.ts", "delay": 550 },
-    { "kind": "tool", "tool": "read", "detail": "src/auth/tokens.ts", "delay": 500 },
-    { "kind": "assistant", "text": "verify() is called with no algorithms option, so a token forged with a different HMAC algorithm (HS384) using the same secret would be accepted. Writing a reproduction test.", "delay": 950 },
-    { "kind": "tool", "tool": "write", "detail": "test/auth.security.test.ts (forges an HS384 token)", "delay": 700 },
-    { "kind": "tool", "tool": "shell", "detail": "npm test", "delay": 850 },
-    { "kind": "test", "status": "fail", "summary": "1 failing — the HS384-forged token is accepted by requireAuth (201). Vulnerability reproduced.", "delay": 1000 },
-    { "kind": "assistant", "text": "Confirmed. Upgrading jsonwebtoken and restricting the accepted algorithm.", "delay": 750 },
-    { "kind": "tool", "tool": "edit", "detail": "package.json — jsonwebtoken 8.5.1 → ^9.0.0 (resolved 9.0.3)", "delay": 650 },
-    { "kind": "tool", "tool": "shell", "detail": "npm install", "delay": 800 },
-    { "kind": "tool", "tool": "edit", "detail": "src/middleware/auth.ts — jwt.verify(token, secret, { algorithms: ['HS256'] })", "delay": 750 },
-    { "kind": "tool", "tool": "shell", "detail": "npm test", "delay": 950 },
-    { "kind": "test", "status": "pass", "summary": "13 passing — the forged HS384 token now returns 401 invalid_token.", "delay": 1000 },
+    {
+      "kind": "routing",
+      "receipt": {
+        "version": 1,
+        "status": "selected",
+        "workKind": "fix",
+        "tier": "easy",
+        "reason": "recorded-bounded-remediation",
+        "requestedModel": "composer-2.5",
+        "selectedModel": "composer-2.5",
+        "params": [],
+        "source": "recorded-run",
+        "catalog": "unverified"
+      },
+      "delay": 220
+    },
+    {
+      "kind": "status",
+      "text": "Cloud agent started \u00b7 composer-2.5 \u00b7 treypeirce/acme-payments",
+      "delay": 350
+    },
+    {
+      "kind": "plan",
+      "text": "Reproduce the weak JWT verification with a failing test, then upgrade jsonwebtoken to 9 and restrict verify() to HS256, then prove the suite is green. Change only what this fix needs.",
+      "delay": 950
+    },
+    {
+      "kind": "tool",
+      "tool": "read",
+      "detail": "src/middleware/auth.ts",
+      "delay": 550
+    },
+    {
+      "kind": "tool",
+      "tool": "read",
+      "detail": "src/auth/tokens.ts",
+      "delay": 500
+    },
+    {
+      "kind": "assistant",
+      "text": "verify() is called with no algorithms option, so a token forged with a different HMAC algorithm (HS384) using the same secret would be accepted. Writing a reproduction test.",
+      "delay": 950
+    },
+    {
+      "kind": "tool",
+      "tool": "write",
+      "detail": "test/auth.security.test.ts (forges an HS384 token)",
+      "delay": 700
+    },
+    {
+      "kind": "tool",
+      "tool": "shell",
+      "detail": "npm test",
+      "delay": 850
+    },
+    {
+      "kind": "test",
+      "status": "fail",
+      "summary": "1 failing \u2014 the HS384-forged token is accepted by requireAuth (201). Vulnerability reproduced.",
+      "delay": 1000
+    },
+    {
+      "kind": "assistant",
+      "text": "Confirmed. Upgrading jsonwebtoken and restricting the accepted algorithm.",
+      "delay": 750
+    },
+    {
+      "kind": "tool",
+      "tool": "edit",
+      "detail": "package.json \u2014 jsonwebtoken 8.5.1 \u2192 ^9.0.0 (resolved 9.0.3)",
+      "delay": 650
+    },
+    {
+      "kind": "tool",
+      "tool": "shell",
+      "detail": "npm install",
+      "delay": 800
+    },
+    {
+      "kind": "tool",
+      "tool": "edit",
+      "detail": "src/middleware/auth.ts \u2014 jwt.verify(token, secret, { algorithms: ['HS256'] })",
+      "delay": 750
+    },
+    {
+      "kind": "tool",
+      "tool": "shell",
+      "detail": "npm test",
+      "delay": 950
+    },
+    {
+      "kind": "test",
+      "status": "pass",
+      "summary": "13 passing \u2014 the forged HS384 token now returns 401 invalid_token.",
+      "delay": 1000
+    },
     {
       "kind": "diff",
       "files": [
-        { "path": "package.json", "added": 1, "removed": 1 },
-        { "path": "src/middleware/auth.ts", "added": 3, "removed": 1 },
-        { "path": "test/auth.security.test.ts", "added": 22, "removed": 0 }
+        {
+          "path": "package.json",
+          "added": 1,
+          "removed": 1
+        },
+        {
+          "path": "src/middleware/auth.ts",
+          "added": 3,
+          "removed": 1
+        },
+        {
+          "path": "test/auth.security.test.ts",
+          "added": 22,
+          "removed": 0
+        }
       ],
       "patch": "  src/middleware/auth.ts\n- const claims = jwt.verify(token, config.jwtSecret) as SessionClaims;\n+ const claims = jwt.verify(token, config.jwtSecret, {\n+   algorithms: [\"HS256\"],\n+ }) as SessionClaims;\n\n  package.json\n- \"jsonwebtoken\": \"8.5.1\",\n+ \"jsonwebtoken\": \"^9.0.0\",",
       "delay": 900
     },
-    { "kind": "done", "status": "complete", "branch": "cursor/jsonwebtoken-cve-fix-d312", "prUrl": "https://github.com/treypeirce/acme-payments/pull/1", "delay": 400 }
+    {
+      "kind": "done",
+      "status": "complete",
+      "branch": "cursor/jsonwebtoken-cve-fix-d312",
+      "prUrl": "https://github.com/treypeirce/acme-payments/pull/1",
+      "delay": 400
+    }
   ]
 }

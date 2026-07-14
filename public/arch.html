@@ -76,11 +76,12 @@
     <div class="zone">
       <div class="zhead">
         <div class="zrole"><span class="n">1</span>DECIDE</div>
-        <div class="zsub">Cursor cloud · read-only investigator agents <em class="api">api</em></div>
+        <div class="zsub">Cursor cloud · advisory investigator agents <em class="api">api</em></div>
       </div>
       <div class="zcard">
         <div class="t">Investigator agents <span class="chip par">× 4 in parallel</span></div>
-        <div class="l">one read-only agent per service · isolated VM</div>
+        <div class="l">one advisory agent per service · no automatic PR</div>
+        <div class="l"><b>Fable 5 High</b> · deeper reasoning for reachability and risk</div>
         <div class="l">runs <b>npm audit</b> · reads the actual code</div>
         <div class="l">policy in plain English · money path → human</div>
         <div class="l"><b>verdict + file:line evidence</b> in ~1 min</div>
@@ -112,13 +113,15 @@
       <div class="zcard">
         <div class="t">Agent VM <span class="chip par">× 2 in parallel</span></div>
         <div class="l">isolated clean room · one per FIX service</div>
+        <div class="l"><b>Composer 2.5 Fast</b> · bounded reproduce-and-patch work</div>
         <div class="l">clones the repo · installs · runs tests</div>
         <div class="l"><b>failing test → patch → tests green</b></div>
         <div class="l">destroyed when done</div>
       </div>
       <div class="zcard">
         <div class="t">Reviewer agent</div>
-        <div class="l">read-only · reviews each fix PR</div>
+        <div class="l">advisory · reviews each fix PR · no automatic PR</div>
+        <div class="l"><b>Fable 5 High</b> · independent security judgment</div>
         <div class="l">posts its review on the PR · ~1 min</div>
       </div>
       <div class="zcard">
@@ -165,4 +168,5 @@
   <footer>investigate on Cursor cloud · fix on Cursor cloud · land in GitHub behind a human gate</footer>
 </div>
 </body>
+</html>
 </html>
