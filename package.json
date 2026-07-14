@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Sentinel — governed vulnerability triage engine (deterministic scorer + reachability gate).",
+  "description": "Sentinel — governed multi-agent vulnerability investigation and remediation.",
   "engines": {
     "node": ">=23.6"
   },
@@ -17,7 +17,7 @@
     "cockpit:fleet": "node src/cockpit/build-fleet.mjs",
     "cockpit": "node src/cockpit/server.ts",
     "typecheck": "tsc --noEmit",
-    "test": "node --test test/cvss.test.ts test/reachability.test.ts test/policy.test.ts"
+    "test": "node --test test/*.test.ts"
   },
   "dependencies": {
     "@cursor/sdk": "^1.0.23"

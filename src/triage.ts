@@ -54,11 +54,12 @@ export async function triage(targetRepo: string, refresh = false): Promise<Triag
         route = "ESCALATE";
         sensitiveMatch = sensitive.name;
         rationale = `Reachable AND on a sensitive path — ${sensitive.description}. Requires human sign-off; agents do not auto-modify money-movement code.`;
+      } else if (!advisory.fixedVersion) {
+        route = "ESCALATE";
+        rationale = "Reachable on a live call path, but no clean upstream fix is recorded. A human must choose the mitigation before an agent changes code.";
       } else {
         route = "FIX";
-        rationale = advisory.fixedVersion
-          ? `Reachable on a live call path with a clean upstream fix (${dep.name}@${advisory.fixedVersion}). Safe for an agent to reproduce, patch, and open a PR.`
-          : `Reachable on a live call path. No clean upstream fix recorded — agent should attempt mitigation and flag for review.`;
+        rationale = `Reachable on a live call path with a clean upstream fix (${dep.name}@${advisory.fixedVersion}). Safe for an agent to reproduce, patch, and open a PR.`;
       }
     }
 

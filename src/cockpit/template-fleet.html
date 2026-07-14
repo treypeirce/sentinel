@@ -37,6 +37,9 @@
   .gchip{font:500 11.5px var(--sans);color:var(--dim);background:#fff;border:1px solid var(--line);border-radius:999px;padding:6px 11px;cursor:default}
   .gchip b{color:var(--green)}
   .replay{font:500 11px var(--mono);color:var(--faint)}
+  .global-log{display:none;margin:12px 0 -4px;padding:9px 12px;background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--blue);font:500 10.5px var(--mono);color:var(--dim)}
+  .global-log.show{display:flex;flex-wrap:wrap;gap:8px 16px}
+  .global-log .blocked{color:var(--red);font-weight:700}
 
   .summary{display:flex;flex-wrap:wrap;background:var(--panel);border:1px solid var(--line);border-radius:12px;margin:18px 0 20px;overflow:hidden}
   .stat{flex:1;min-width:108px;padding:14px 18px}
@@ -100,6 +103,7 @@
   @keyframes fade{from{opacity:0}to{opacity:1}}
   .lb{flex-shrink:0;font:700 9px var(--mono);padding:1px 6px;border-radius:4px;text-transform:uppercase;margin-top:2px}
   .lb.plan{background:var(--bluebg);color:var(--blue)}
+  .lb.route{background:var(--bluebg);color:var(--blue)}
   .lb.tool{background:var(--greybg);color:var(--grey)}
   .lb.status{background:var(--greybg);color:var(--dim)}
   .lb.fail{background:var(--redbg);color:var(--red)}
@@ -156,15 +160,17 @@
       <div><h1>Sentinel</h1><div class="tag">Fleet remediation cockpit</div></div>
     </div>
     <div class="actions">
-      <button class="btn" id="run-investigate" style="display:none" title="One read-only cloud agent per service · runs npm audit, reads the code, routes each finding">Investigate fleet</button>
+      <button class="btn" id="run-investigate" style="display:none" title="One advisory cloud agent per service · no automatic PR · runs npm audit, reads the code, routes each finding">Investigate fleet</button>
       <button class="btn" id="run-live" style="display:none" title="One cloud agent per FIX verdict · failing test → patch → tests green → draft PR · a reviewer agent follows">Dispatch fix agents</button>
       <button class="btn ghost" id="run-replay">Play recorded run</button>
       <button class="btn ghost" id="show-flow">How it works</button>
+      <span class="gchip" title="Task-aware SDK routing: bounded fixes use Composer 2.5 Fast; investigations and reviews use Fable 5 High"><b>↳</b> Composer fixes · Fable judgment</span>
       <span class="gchip" title="beforeShellExecution hook denies: curl|sh · git push --force · rm -rf · .github/workflows edits · .env reads · publish"><b>✓</b> change-control hooks enforced</span>
       <span class="replay" id="runmeta">idle</span>
     </div>
   </div>
 
+  <div class="global-log" id="global-log" aria-live="polite"></div>
   <div class="summary" id="summary"></div>
   <div class="grid" id="grid"></div>
 
@@ -173,7 +179,7 @@
       <div>
         <div class="fsec">1 · Flow · finding → merged fix</div>
         <div class="fpanel steps">
-          <div class="step"><span class="num">1</span><span class="t">Investigate</span><span class="s">one read-only cloud agent per service · npm audit + reads the code · npm registry advisories <em class="api">live api</em> · queried inside the VM</span></div>
+          <div class="step"><span class="num">1</span><span class="t">Investigate</span><span class="s">one advisory cloud agent per service · no automatic PR · npm audit + reads the code · npm registry advisories <em class="api">live api</em> · queried inside the VM</span></div>
           <div class="step"><span class="num">2</span><span class="t">Evidence</span><span class="s">file:line receipts land on this board</span></div>
           <div class="step"><span class="num">3</span><span class="t">Route</span><span class="s"><b class="rfix">FIX</b> · <b class="rskip">SKIP</b> · <b class="resc">ESCALATE</b> · policy written in plain English in the agent's brief · unsure = human</span></div>
           <div class="step"><span class="num">4</span><span class="t">Approve</span><span class="s">a human clicks dispatch · nothing runs without it</span></div>
@@ -294,9 +300,12 @@ function applyInvdone(e){
   if(s.FIX!=null) el("fcnt-fix").textContent=s.FIX+" now";
   if(s.ESCALATE!=null) el("fcnt-esc").textContent=s.ESCALATE+" now";
   if(s.SKIP!=null) el("fcnt-skip").textContent=s.SKIP+" now";
-  if((s.FIX|0)>0) el("run-live").style.display="";
+  if(!s.incomplete && (s.FIX|0)>0) el("run-live").style.display="";
+  else el("run-live").style.display="none";
   if(tick){clearInterval(tick);tick=null;}
-  el("runmeta").textContent="investigated · dispatch ready";
+  const message=s.incomplete?"investigation incomplete · dispatch blocked":"investigated · dispatch ready";
+  el("runmeta").textContent=message;
+  if(s.incomplete) addGlobal(message,true);
 }
 
 /* ---- lane streaming ---- */
@@ -315,6 +324,13 @@ function renderTo(name,e){
   if(e.kind!=="tool") L.lastT=null;
   switch(e.kind){
     case "status": addLn(L,'<span class="lb status">agent</span><span class="tx muted">'+esc(e.text)+'</span>'); break;
+    case "routing": {
+      const r=e.receipt||{};
+      const model=(r.sdkResolvedModel&&r.sdkResolvedModel.id)||r.selectedModel||r.requestedModel||"unavailable";
+      const copy=r.status==="blocked"?("blocked · "+(r.blockedReason||"model unavailable")):((r.tier||"")+" "+(r.workKind||"work")+" → "+model+" · "+(r.source||"default"));
+      addLn(L,'<span class="lb route">route</span><span class="tx">'+esc(copy.trim())+'</span>');
+      break;
+    }
     case "plan": addLn(L,'<span class="lb plan">plan</span><span class="tx">'+esc(e.text)+'</span>'); break;
     case "assistant": {
       const t=esc(e.text);
@@ -330,14 +346,14 @@ function renderTo(name,e){
     }
     case "test": addLn(L,'<span class="lb '+(e.status==="pass"?"pass":"fail")+'">'+(e.status==="pass"?"green":"red")+'</span><span class="tx">'+esc(e.summary)+'</span>',e.status); break;
     case "review": {
-      const v=e.verdict==="approve"?'<span class="vtag ok">✓ APPROVE</span>':(e.verdict==="changes"?'<span class="vtag warn">REQUEST CHANGES</span>':'<span class="vtag">REVIEW</span>');
+      const v=e.verdict==="approve"?'<span class="vtag ok">✓ APPROVE</span>':(e.verdict==="changes"?'<span class="vtag warn">REQUEST CHANGES</span>':(e.verdict==="blocked"?'<span class="vtag warn">REVIEW BLOCKED</span>':'<span class="vtag">REVIEW</span>'));
       let html='<div class="rvhead">'+v+'<span class="rvmeta">'+receipt(e)+'</span></div><div class="rvtext">'+esc(e.text||"")+'</div>';
       if(e.commentUrl) html+='<div class="rvlink"><a href="'+e.commentUrl+'" target="_blank" rel="noopener noreferrer">review posted on the PR ↗</a></div>';
       const d=document.createElement("div"); d.className="rvbox"; d.innerHTML=html; L.log.appendChild(d); L.log.scrollTop=L.log.scrollHeight;
       break;
     }
     case "done": {
-      if(e.noPr){ addLn(L,'<span class="lb done">done</span><span class="tx">'+(e.status==="error"?"reviewer errored":"review complete")+'</span>'); break; }
+      if(e.noPr){ const msg=e.status==="error"?"reviewer errored":(e.status==="review-blocked"?"review blocked · human review required":"review complete"); addLn(L,'<span class="lb done">done</span><span class="tx">'+msg+'</span>'); break; }
       addLn(L,'<span class="lb done">done</span><span class="tx">PR opened'+(receipt(e)?' <span class="muted">· '+receipt(e)+'</span>':'')+'</span>');
       const pr = e.prUrl || ART.prs[name];
       const bar=el("pr-"+name);
@@ -348,10 +364,35 @@ function renderTo(name,e){
   }
 }
 
+function addGlobal(text,blocked){
+  const log=el("global-log");
+  const item=document.createElement("span");
+  item.textContent=text;
+  if(blocked) item.className="blocked";
+  log.appendChild(item);
+  while(log.children.length>6) log.firstChild.remove();
+  log.classList.add("show");
+}
+
 function handleEvent(e){
   if(!e || !e.kind) return;
   if(e.kind==="invdone"){ applyInvdone(e); return; }
-  if(e.lane) renderTo(e.lane,e);
+  if(e.lane){ renderTo(e.lane,e); return; }
+  if(e.kind==="routing"){
+    const r=e.receipt||{};
+    const model=(r.sdkResolvedModel&&r.sdkResolvedModel.id)||r.selectedModel||r.requestedModel||"unavailable";
+    const message=r.status==="blocked"?("routing blocked · "+(r.blockedReason||model)):((r.tier||"")+" "+(r.workKind||"work")+" → "+model+" · "+(r.source||"default"));
+    el("runmeta").textContent=message;
+    addGlobal(message,r.status==="blocked");
+  } else if(e.kind==="status") {
+    const message=e.text||"status unavailable";
+    el("runmeta").textContent=message;
+    addGlobal(message,/blocked|unavailable|error/i.test(message));
+  } else if(e.kind==="done" && (e.status==="blocked"||e.status==="error")) {
+    const message="dispatch "+e.status;
+    el("runmeta").textContent=message;
+    addGlobal(message,true);
+  }
 }
 
 function receipt(e){
@@ -413,7 +454,8 @@ function toggleFlow(){
 
 renderSummary(null);
 renderGrid();
-el("foot").innerHTML='investigators, fixers, and a reviewer on Cursor cloud · guardrail hooks active · verify: <span class="mono">npm run guardrail:check</span>';
+const replayPolicy=(RUN.meta&&RUN.meta.routingPolicy)||"";
+el("foot").innerHTML='investigators, fixers, and a reviewer on Cursor cloud · guardrail hooks active · verify: <span class="mono">npm run guardrail:check</span>'+(replayPolicy?'<br><span class="mono">recording note: '+esc(replayPolicy)+'</span>':'');
 el("run-investigate").addEventListener("click",runInvestigate);
 el("run-live").addEventListener("click",runLive);
 el("run-replay").addEventListener("click",playRecorded);

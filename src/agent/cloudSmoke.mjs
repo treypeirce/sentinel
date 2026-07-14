@@ -1,11 +1,14 @@
 // Cloud smoke test: start a CLOUD agent to fix the jsonwebtoken vuln on the
 // real repo with autoCreatePR, confirm it starts, then exit (the agent keeps
 // running on Cursor's infra and opens a PR). Hard 40s cap so we never hang.
-import { Agent } from "@cursor/sdk";
+import { Agent, Cursor } from "@cursor/sdk";
+import { planModelRoute, resolveModelRoute, routingSummary } from "./modelRouting.ts";
 
 const apiKey = process.env.CURSOR_API_KEY;
+if (!apiKey) { console.error("no CURSOR_API_KEY"); process.exit(2); }
 const repoUrl = process.env.REPO ?? "https://github.com/treypeirce/acme-payments";
-const model = process.env.SENTINEL_MODEL ?? "composer-2.5";
+const route = resolveModelRoute(planModelRoute("fix"), await Cursor.models.list({ apiKey }));
+if (!route.selection) { console.error("routing blocked:", route.receipt.blockedReason); process.exit(2); }
 
 const PROMPT = `Remediate ONE known vulnerability. Package: jsonwebtoken@8.5.1 (CVE-2022-23539) — weak token verification. It is used by requireAuth in src/middleware/auth.ts, on every protected route.
 Steps in order:
@@ -20,10 +23,10 @@ const cap = setTimeout(() => {
 }, 40000);
 
 try {
-  console.log(`create CLOUD agent · ${repoUrl} · model=${model}`);
+  console.log(`create CLOUD agent · ${repoUrl} · ${routingSummary(route.receipt)}`);
   const agent = await Agent.create({
     apiKey,
-    model: { id: model },
+    model: route.selection,
     cloud: { repos: [{ url: repoUrl, startingRef: process.env.REF ?? "main" }], autoCreatePR: true },
   });
   console.log("agentId:", agent.agentId);

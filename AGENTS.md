@@ -1,12 +1,15 @@
 # Sentinel · agent guide
 
-Sentinel is a governed vulnerability-remediation cockpit. Read-only investigator
-agents (Cursor cloud) triage a fleet of services, a human dispatches fix agents,
+Sentinel is a governed vulnerability-remediation cockpit. Advisory investigator
+agents (Cursor cloud, no automatic PR) triage a fleet of services, a human dispatches fix agents,
 a reviewer agent audits every fix PR, and a human merges. This file maps the
 repo for coding agents making live changes.
 
 ## Layout
 
+- `src/agent/modelRouting.ts` — the centralized model policy. Bounded fixes use
+  Composer 2.5 Fast; investigations and reviews use Fable 5 High. Model choices
+  are catalog-verified and emitted as routing receipts before SDK dispatch.
 - `src/cockpit/server.ts` — the whole backend. Serves the cockpit and drives all
   cloud agents. Key spots:
   - `investigatorPrompt()` — the investigator brief. **The routing policy lives
@@ -50,5 +53,8 @@ post reviewer comments on PRs.
   PRs; humans merge. That invariant is the product.
 - Verdict enum is exactly `FIX | SKIP | ESCALATE`. The cockpit and dispatch
   logic depend on it.
+- Model routing is separate from verdict routing. Change model policy only in
+  `modelRouting.ts`; never infer the model from prompt text or repository files.
+  Unavailable deep models fail closed rather than downgrade to the easy tier.
 - Keep the cockpit's design language: light theme, terse product copy, no
   marketing sentences, no emoji.

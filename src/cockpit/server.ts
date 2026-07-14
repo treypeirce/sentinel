@@ -19,13 +19,21 @@ import { createServer } from "node:http";
 import { readFileSync, existsSync, writeFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  planModelRoute,
+  resolveModelRoute,
+  withActualModel,
+  type ModelRoutingReceipt,
+  type ModelWorkKind,
+  type PlannedModelRoute,
+} from "../agent/modelRouting.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(here, "..", "..");
 const PORT = Number(process.env.PORT ?? 4317);
+const HOST = process.env.HOST ?? "127.0.0.1";
 const REPO = process.env.REPO ?? "https://github.com/treypeirce/acme-payments";
 const REF = process.env.REF ?? "main";
-const MODEL = process.env.SENTINEL_MODEL ?? "composer-2.5";
 
 const FIX_PROMPT = `Remediate ONE known vulnerability. Package: jsonwebtoken@8.5.1 (CVE-2022-23539) — weak token verification, used by requireAuth in src/middleware/auth.ts on every protected route.
 Steps in order:
@@ -37,6 +45,37 @@ Change only what this fix needs. Do not touch .github/** or .cursor/**. Do not m
 /** Last PR opened per repo URL during this server session (live fleet runs update it). */
 const LAST_PR: Record<string, string> = {};
 const DEFAULT_REVIEW_PR = "https://github.com/treypeirce/acme-billing/pull/1";
+
+let modelCatalogPromise: Promise<any[]> | null = null;
+async function selectModel(workKind: ModelWorkKind, apiKey: string): Promise<PlannedModelRoute> {
+  const planned = planModelRoute(workKind);
+  if (!planned.selection) return planned;
+  if (!modelCatalogPromise) {
+    modelCatalogPromise = import("@cursor/sdk").then(({ Cursor }) => Cursor.models.list({ apiKey }));
+  }
+  try {
+    return resolveModelRoute(planned, await modelCatalogPromise);
+  } catch {
+    modelCatalogPromise = null;
+    return {
+      receipt: {
+        ...planned.receipt,
+        status: "blocked",
+        selectedModel: undefined,
+        catalog: "unavailable",
+        blockedReason: "Cursor model catalog could not be verified.",
+      },
+    };
+  }
+}
+
+function emitRouting(
+  emit: (o: unknown) => void,
+  lane: string | undefined,
+  receipt: ModelRoutingReceipt,
+): void {
+  emit({ ...(lane ? { lane } : {}), kind: "routing", receipt });
+}
 
 /** Investigator verdicts from the most recent investigation (memory + disk). */
 const VERDICT_CACHE_PATH = () => join(ROOT, "investigation-cache.json");
@@ -173,19 +212,26 @@ async function ensureEscalationIssue(repoUrl: string, findings: any[]): Promise<
   }
 }
 
-/** Dispatch a read-only reviewer agent for a PR and stream its work into a lane. */
-async function runReviewer(lane: string, repoUrl: string, prUrl: string, emit: (o: unknown) => void): Promise<void> {
+/** Dispatch an advisory reviewer agent for a PR and stream its work into a lane. */
+async function runReviewer(lane: string, repoUrl: string, prUrl: string, emit: (o: unknown) => void): Promise<boolean> {
   const apiKey = process.env.CURSOR_API_KEY;
   const target = parsePrUrl(prUrl);
-  if (!apiKey || !target) return;
+  if (!apiKey || !target) return false;
+  const route = await selectModel("review", apiKey);
+  emitRouting(emit, lane, route.receipt);
+  if (!route.selection) {
+    emit({ lane, kind: "status", text: `Reviewer blocked: ${route.receipt.blockedReason}` });
+    emit({ lane, kind: "review", verdict: "blocked", text: route.receipt.blockedReason, prUrl, routing: route.receipt });
+    return false;
+  }
   const t0 = Date.now();
   const { Agent } = await import("@cursor/sdk");
   emit({ lane, kind: "status", text: `Dispatching REVIEWER agent for ${target.repo} PR #${target.num}…` });
   const agent = await Agent.create({
-    apiKey, model: { id: MODEL },
-    cloud: { repos: [{ url: repoUrl, startingRef: "main" }], autoCreatePR: true },
+    apiKey, model: route.selection,
+    cloud: { repos: [{ url: repoUrl, startingRef: "main" }], autoCreatePR: false },
   });
-  emit({ lane, kind: "status", text: `Reviewer agent ${(agent as any).agentId ?? ""} dispatched · read-only` });
+  emit({ lane, kind: "status", text: `Reviewer agent ${(agent as any).agentId ?? ""} dispatched · advisory only` });
   const run = await agent.send(reviewPrompt(target.num));
   for await (const ev of run.stream() as AsyncIterable<any>) {
     if (ev?.type === "status") emit({ lane, kind: "status", text: phaseLabel(ev.status ?? ev.state) });
@@ -193,13 +239,17 @@ async function runReviewer(lane: string, repoUrl: string, prUrl: string, emit: (
     else if (ev?.type === "tool_call") emit({ lane, kind: "tool", tool: ev.tool ?? ev.name ?? "tool", detail: ev.detail ?? "" });
   }
   const result = (await run.wait().catch(() => null)) as any;
+  const routed = withActualModel(route.receipt, result?.model);
+  emitRouting(emit, lane, routed);
   const text = String(result?.result ?? "").trim();
   const verdict = /VERDICT:\s*APPROVE/i.test(text) ? "approve" : (/VERDICT:\s*REQUEST/i.test(text) ? "changes" : "review");
   let commentUrl: string | null = null;
   if (text) {
-    commentUrl = await postPrComment(prUrl, `**Sentinel · agent review of this PR**\n\n${text}\n\n_Posted automatically by the Sentinel reviewer agent (${MODEL}). A human still owns the merge._`).catch(() => null);
+    const model = routed.sdkResolvedModel?.id ?? routed.selectedModel ?? routed.requestedModel;
+    commentUrl = await postPrComment(prUrl, `**Sentinel · agent review of this PR**\n\n${text}\n\n_Posted automatically by the Sentinel reviewer agent (${model}). A human still owns the merge._`).catch(() => null);
   }
-  emit({ lane, kind: "review", verdict, text, prUrl, commentUrl, durationMs: result?.durationMs ?? (Date.now() - t0) });
+  emit({ lane, kind: "review", verdict, text, prUrl, commentUrl, durationMs: result?.durationMs ?? (Date.now() - t0), routing: routed });
+  return true;
 }
 
 function sse(res: any) {
@@ -259,31 +309,41 @@ const server = createServer((req, res) => {
     return send(res, 200, "application/json", JSON.stringify({ ok: true, live: !!process.env.CURSOR_API_KEY, verdicts: !!loadVerdicts(), repo: REPO }));
   }
 
-  // Parallel read-only INVESTIGATION: one cloud agent per service decides the routes.
+  // Parallel advisory INVESTIGATION: one cloud agent per service decides the routes.
   if (url.startsWith("/api/investigate")) {
     const emit = sse(res);
     const apiKey = process.env.CURSOR_API_KEY;
     const fleetPath = join(ROOT, "fleet-queue.json");
     if (!apiKey || !existsSync(fleetPath)) {
-      emit({ kind: "status", text: "No key or fleet manifest on the server." });
-      emit({ kind: "invdone", summary: { services: 0, findings: 0, FIX: 0, SKIP: 0, ESCALATE: 0 } });
+      emit({ kind: "status", text: "Investigation unavailable: missing Cursor key or fleet manifest." });
+      emit({ kind: "invdone", summary: { services: 0, findings: 0, FIX: 0, SKIP: 0, ESCALATE: 0, incomplete: true } });
       return res.end();
     }
     const fleet = JSON.parse(readFileSync(fleetPath, "utf8")) as any;
     const services = fleet.services as any[];
     (async () => {
       const { Agent } = await import("@cursor/sdk");
+      const route = await selectModel("investigate", apiKey);
+      emitRouting(emit, undefined, route.receipt);
+      if (!route.selection) {
+        emit({ kind: "status", text: `Investigation blocked: ${route.receipt.blockedReason}` });
+        emit({ kind: "invdone", summary: { services: services.length, findings: 0, FIX: 0, SKIP: 0, ESCALATE: 0, incomplete: true } });
+        res.write("event: end\ndata: {}\n\n");
+        res.end();
+        return;
+      }
       const collected: Record<string, any> = {};
 
       async function investigateOnce(svc: any, attempt: number): Promise<any> {
         const lane = svc.name;
         const t0 = Date.now();
-        emit({ lane, kind: "status", text: (attempt > 1 ? "retry · " : "") + `Dispatching read-only investigator to ${lane}…` });
+        emit({ lane, kind: "status", text: (attempt > 1 ? "retry · " : "") + `Dispatching advisory investigator to ${lane}…` });
+        emitRouting(emit, lane, route.receipt);
         const agent = await Agent.create({
-          apiKey, model: { id: MODEL },
-          cloud: { repos: [{ url: svc.repoUrl, startingRef: "main" }], autoCreatePR: true },
+          apiKey, model: route.selection,
+          cloud: { repos: [{ url: svc.repoUrl, startingRef: "main" }], autoCreatePR: false },
         });
-        emit({ lane, kind: "status", text: `Investigator ${(agent as any).agentId ?? ""} · read-only · isolated VM` });
+        emit({ lane, kind: "status", text: `Investigator ${(agent as any).agentId ?? ""} · advisory · no automatic PR` });
         const run = await agent.send(investigatorPrompt(svc.name));
         for await (const ev of run.stream() as AsyncIterable<any>) {
           if (ev?.type === "status") emit({ lane, kind: "status", text: phaseLabel(ev.status ?? ev.state) });
@@ -291,13 +351,15 @@ const server = createServer((req, res) => {
           else if (ev?.type === "tool_call") emit({ lane, kind: "tool", tool: ev.tool ?? ev.name ?? "tool", detail: ev.detail ?? "" });
         }
         const result = (await run.wait().catch(() => null)) as any;
+        const routed = withActualModel(route.receipt, result?.model);
+        emitRouting(emit, lane, routed);
         const elapsed = Date.now() - t0;
         if (result?.status !== "finished") {
           if (attempt < 2 && elapsed < 30000) return investigateOnce(svc, attempt + 1); // transient infra flake: retry once
           return { failed: true, elapsed };
         }
         const parsed = parseVerdictText(result?.result ?? "");
-        return { parsed, elapsed, durationMs: result?.durationMs ?? elapsed };
+        return { parsed, elapsed, durationMs: result?.durationMs ?? elapsed, routing: routed };
       }
 
       await Promise.all(services.map(async (svc: any) => {
@@ -314,12 +376,12 @@ const server = createServer((req, res) => {
           const issueUrl = findings.some((f: any) => f.verdict === "ESCALATE")
             ? await ensureEscalationIssue(svc.repoUrl, findings).catch(() => null)
             : null;
-          emit({ lane, kind: "verdict", service: svc.name, durationMs: out.durationMs ?? out.elapsed, findings, issueUrl });
+          emit({ lane, kind: "verdict", service: svc.name, durationMs: out.durationMs ?? out.elapsed, findings, issueUrl, routing: out.routing ?? route.receipt });
         } catch (e: any) {
           const findings = [{ package: "(investigation error)", version: "", cve: null, verdict: "ESCALATE", reachable: null, evidence: [], reason: "Investigator error: routed to a human by default." }];
           collected[svc.name] = { service: svc.name, repoUrl: svc.repoUrl, findings };
           const issueUrl = await ensureEscalationIssue(svc.repoUrl, findings).catch(() => null);
-          emit({ lane, kind: "verdict", service: svc.name, durationMs: 0, findings, issueUrl });
+          emit({ lane, kind: "verdict", service: svc.name, durationMs: 0, findings, issueUrl, routing: route.receipt });
         }
       }));
 
@@ -374,11 +436,18 @@ const server = createServer((req, res) => {
       const t0 = Date.now();
       try {
         const { Agent } = await import("@cursor/sdk");
+        const route = await selectModel("fix", apiKey);
+        emitRouting(emit, undefined, route.receipt);
+        if (!route.selection) {
+          emit({ kind: "status", text: `Dispatch blocked: ${route.receipt.blockedReason}` });
+          emit({ kind: "done", status: "blocked", routing: route.receipt });
+          return;
+        }
         emit({ kind: "status", text: `Dispatching cloud agent to ${REPO.split("/").slice(-2).join("/")}…` });
         emit({ kind: "plan", text: "Reproduce the weak JWT verification with a failing test, upgrade jsonwebtoken to 9, restrict verify() to HS256, prove green, and open a PR." });
         const agent = await Agent.create({
           apiKey,
-          model: { id: MODEL },
+          model: route.selection,
           cloud: { repos: [{ url: REPO, startingRef: REF }], autoCreatePR: true },
         });
         emit({ kind: "status", text: `Cloud agent ${(agent as any).agentId ?? ""} dispatched` });
@@ -389,10 +458,12 @@ const server = createServer((req, res) => {
           else if (ev?.type === "tool_call") emit({ kind: "tool", tool: ev.tool ?? ev.name ?? "tool", detail: ev.detail ?? "" });
         }
         const result = (await run.wait().catch(() => null)) as any;
+        const routed = withActualModel(route.receipt, result?.model);
+        emitRouting(emit, undefined, routed);
         const branch = result?.git?.branches?.[0]?.branch;
         const pr = result?.git?.branches?.[0]?.prUrl ?? result?.git?.branches?.[0]?.pr_url;
         if (pr) LAST_PR[REPO] = pr;
-        emit({ kind: "done", status: result?.status ?? "complete", branch, prUrl: pr, ...receiptOf(result, t0) });
+        emit({ kind: "done", status: result?.status ?? "complete", branch, prUrl: pr, ...receiptOf(result, t0), routing: routed });
       } catch (e: any) {
         emit({ kind: "status", text: "Live run error: " + (e?.message ?? e) });
         emit({ kind: "done", status: "error" });
@@ -423,15 +494,23 @@ const server = createServer((req, res) => {
     (async () => {
       try {
         const { Agent } = await import("@cursor/sdk");
+        const route = await selectModel("fix", apiKey);
+        emitRouting(emit, undefined, route.receipt);
+        if (!route.selection) {
+          emit({ kind: "status", text: `Fleet dispatch blocked: ${route.receipt.blockedReason}` });
+          emit({ kind: "done", status: "blocked", routing: route.receipt });
+          return;
+        }
         await Promise.all(
           fixServices.map(async (svc: any) => {
             const lane = svc.name;
             const t0 = Date.now();
             try {
               emit({ lane, kind: "status", text: `Dispatching cloud agent to ${lane}…` });
+              emitRouting(emit, lane, route.receipt);
               const agent = await Agent.create({
                 apiKey,
-                model: { id: MODEL },
+                model: route.selection,
                 cloud: { repos: [{ url: svc.repoUrl, startingRef: REF }], autoCreatePR: true },
               });
               emit({ lane, kind: "status", text: `Cloud agent ${(agent as any).agentId ?? ""} dispatched` });
@@ -442,13 +521,19 @@ const server = createServer((req, res) => {
                 else if (ev?.type === "tool_call") emit({ lane, kind: "tool", tool: ev.tool ?? ev.name ?? "tool", detail: ev.detail ?? "" });
               }
               const result = (await run.wait().catch(() => null)) as any;
+              const routed = withActualModel(route.receipt, result?.model);
+              emitRouting(emit, lane, routed);
               const prUrl = result?.git?.branches?.[0]?.prUrl;
               if (prUrl) LAST_PR[svc.repoUrl] = prUrl;
-              emit({ lane, kind: "done", status: result?.status ?? "complete", prUrl, ...receiptOf(result, t0) });
-              // Review is part of the pipeline: every fix PR gets an automatic agent review.
-              if (prUrl) await runReviewer(lane, svc.repoUrl, prUrl, emit).catch((e: any) => {
-                emit({ lane, kind: "status", text: "reviewer error: " + (e?.message ?? e) });
-              });
+              emit({ lane, kind: "done", status: result?.status ?? "complete", prUrl, ...receiptOf(result, t0), routing: routed });
+              // Review is part of the pipeline: every fix PR should get an advisory agent review.
+              if (prUrl) {
+                const reviewed = await runReviewer(lane, svc.repoUrl, prUrl, emit).catch((e: any) => {
+                  emit({ lane, kind: "status", text: "reviewer error: " + (e?.message ?? e) });
+                  return false;
+                });
+                if (!reviewed) emit({ lane, kind: "status", text: "Review incomplete — human review required before merge." });
+              }
             } catch (e: any) {
               emit({ lane, kind: "status", text: "error: " + (e?.message ?? e) });
               emit({ lane, kind: "done", status: "error" });
@@ -463,7 +548,7 @@ const server = createServer((req, res) => {
     return;
   }
 
-  // Reviewer agent: a cloud agent reviews a fix PR (read-only) and, if a
+  // Reviewer agent: a cloud agent reviews a fix PR in advisory mode and, if a
   // GITHUB_PAT is set, its review is posted as a real comment on the PR.
   if (url.startsWith("/api/run-review")) {
     const emit = sse(res);
@@ -485,8 +570,8 @@ const server = createServer((req, res) => {
     void target;
     (async () => {
       try {
-        await runReviewer(lane, billingRepo, prUrl, emit);
-        emit({ lane, kind: "done", status: "review-complete", noPr: true });
+        const reviewed = await runReviewer(lane, billingRepo, prUrl, emit);
+        emit({ lane, kind: "done", status: reviewed ? "review-complete" : "review-blocked", noPr: true });
       } catch (e: any) {
         emit({ lane, kind: "status", text: "Reviewer error: " + (e?.message ?? e) });
         emit({ lane, kind: "done", status: "error", noPr: true });
@@ -501,6 +586,11 @@ const server = createServer((req, res) => {
   send(res, 404, "text/plain", "not found");
 });
 
-server.listen(PORT, () => {
-  console.log(`\n  Sentinel cockpit → http://localhost:${PORT}   (live cloud run: ${process.env.CURSOR_API_KEY ? "enabled" : "set CURSOR_API_KEY to enable"})\n`);
+const loopbackHosts = new Set(["127.0.0.1", "::1", "localhost"]);
+if (!loopbackHosts.has(HOST) && process.env.SENTINEL_ALLOW_REMOTE !== "1") {
+  throw new Error("Refusing to expose paid Sentinel run endpoints beyond loopback. Set SENTINEL_ALLOW_REMOTE=1 only in a protected demo network.");
+}
+
+server.listen(PORT, HOST, () => {
+  console.log(`\n  Sentinel cockpit → http://${HOST}:${PORT}   (live cloud run: ${process.env.CURSOR_API_KEY ? "enabled" : "set CURSOR_API_KEY to enable"})\n`);
 });

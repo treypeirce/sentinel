@@ -1,12 +1,15 @@
-// Spike: dispatch read-only INVESTIGATOR agents across the fleet in parallel.
+// Spike: dispatch advisory INVESTIGATOR agents across the fleet in parallel.
 // Each investigates its own repo and must return a strict JSON verdict.
 // Usage: node src/agent/investigateSpike.mjs
-import { Agent } from "@cursor/sdk";
+import { Agent, Cursor } from "@cursor/sdk";
+import { planModelRoute, resolveModelRoute, routingSummary, withActualModel } from "./modelRouting.ts";
 import { writeFileSync } from "node:fs";
 
 const apiKey = process.env.CURSOR_API_KEY;
 if (!apiKey) { console.error("no key"); process.exit(1); }
-const MODEL = process.env.SENTINEL_MODEL ?? "composer-2.5";
+const route = resolveModelRoute(planModelRoute("investigate"), await Cursor.models.list({ apiKey }));
+if (!route.selection) { console.error("routing blocked:", route.receipt.blockedReason); process.exit(2); }
+console.log("routing:", routingSummary(route.receipt));
 
 const FLEET = [
   { name: "acme-payments", url: "https://github.com/treypeirce/acme-payments" },
@@ -65,8 +68,8 @@ async function investigate(svc) {
   const t0 = Date.now();
   try {
     const agent = await Agent.create({
-      apiKey, model: { id: MODEL },
-      cloud: { repos: [{ url: svc.url, startingRef: "main" }], autoCreatePR: true },
+      apiKey, model: route.selection,
+      cloud: { repos: [{ url: svc.url, startingRef: "main" }], autoCreatePR: false },
     });
     const run = await agent.send(investigatorPrompt(svc.name));
     let events = 0;
@@ -76,7 +79,7 @@ async function investigate(svc) {
     if (result?.status !== "finished") return { svc: svc.name, ok: false, secs, why: "run " + (result?.status) + " " + (result?.error?.message ?? "") };
     const parsed = parseVerdict(result.result ?? "");
     const pr = result?.git?.branches?.[0]?.prUrl;
-    return { svc: svc.name, ok: parsed.ok, secs, events, pr: pr ?? null, why: parsed.ok ? null : parsed.why, data: parsed.ok ? parsed.data : null, rawTail: parsed.ok ? null : parsed.raw };
+    return { svc: svc.name, ok: parsed.ok, secs, events, pr: pr ?? null, why: parsed.ok ? null : parsed.why, data: parsed.ok ? parsed.data : null, rawTail: parsed.ok ? null : parsed.raw, routing: withActualModel(route.receipt, result?.model) };
   } catch (e) {
     return { svc: svc.name, ok: false, secs: Math.round((Date.now() - t0) / 1000), why: "exception: " + (e?.message ?? e) };
   }

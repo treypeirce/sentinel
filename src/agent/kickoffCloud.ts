@@ -13,12 +13,13 @@
  * Prereq: the GitHub repo must be connected to the Cursor account so the cloud
  * agent can clone it and open a PR.
  */
-import { Agent } from "@cursor/sdk";
+import { Agent, Cursor } from "@cursor/sdk";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { triage } from "../triage.ts";
 import { buildFixPrompt } from "./prompt.ts";
 import { renderEvent } from "./events.ts";
+import { planModelRoute, resolveModelRoute, withActualModel } from "./modelRouting.ts";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, "..", "..");
@@ -38,7 +39,15 @@ async function main() {
   const repoUrl = arg("--repo") ?? "https://github.com/treypeirce/acme-payments";
   // Pick the FIX finding from a local scan (the cloud agent fixes it in its own clone).
   const localTarget = resolve(process.cwd(), arg("--target") ?? resolve(ROOT, "..", "acme-payments"));
-  const model = process.env.SENTINEL_MODEL ?? "composer-2.5";
+  const route = resolveModelRoute(
+    planModelRoute("fix"),
+    await Cursor.models.list({ apiKey }),
+  );
+  renderEvent({ type: "routing", receipt: route.receipt });
+  if (!route.selection) {
+    console.error(`Model routing blocked: ${route.receipt.blockedReason}`);
+    process.exit(2);
+  }
 
   const report = await triage(localTarget);
   const finding = report.findings.find((f) => f.route === "FIX");
@@ -53,7 +62,7 @@ async function main() {
 
   const agent = await Agent.create({
     apiKey,
-    model: { id: model },
+    model: route.selection,
     cloud: { repos: [{ url: repoUrl }], autoCreatePR: true },
   });
   console.log(`  cloud agent: ${(agent as any).agentId ?? "(started)"}  — keep this terminal open\n`);
@@ -65,6 +74,7 @@ async function main() {
 
   try {
     const result = (await run.wait()) as any;
+    renderEvent({ type: "routing", receipt: withActualModel(route.receipt, result?.model) });
     const pr = result?.git?.branches?.[0]?.prUrl ?? result?.git?.branches?.[0]?.pr_url;
     const branch = result?.git?.branches?.[0]?.branch;
     console.log(`\n\n  done — status ${result?.status ?? "?"}${branch ? `, branch ${branch}` : ""}`);

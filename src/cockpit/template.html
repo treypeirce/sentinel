@@ -84,6 +84,7 @@
   @keyframes fade{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
   .lb{flex-shrink:0;font-size:10px;font-weight:700;letter-spacing:.04em;padding:2px 7px;border-radius:5px;text-transform:uppercase;margin-top:1px}
   .lb.plan{background:rgba(139,156,255,.15);color:var(--violet)}
+  .lb.route{background:rgba(139,156,255,.15);color:var(--violet)}
   .lb.tool{background:rgba(51,225,196,.12);color:var(--cyan)}
   .lb.status{background:#232a39;color:var(--dim)}
   .lb.say{background:transparent;color:var(--faint);border:1px solid var(--line)}
@@ -323,6 +324,15 @@ function render(e) {
     case "status":
       addLine('<span class="lb status">agent</span><span class="ltext muted">' + escapeHtml(e.text) + '</span>', "status");
       break;
+    case "routing": {
+      const r = e.receipt || {};
+      const model = (r.sdkResolvedModel && r.sdkResolvedModel.id) || r.selectedModel || r.requestedModel || "unavailable";
+      const copy = r.status === "blocked"
+        ? "blocked · " + (r.blockedReason || "model unavailable")
+        : ((r.tier || "") + " " + (r.workKind || "work") + " → " + model + " · " + (r.source || "default")).trim();
+      addLine('<span class="lb route">route</span><span class="ltext">' + escapeHtml(copy) + '</span>', "route");
+      break;
+    }
     case "plan":
       addLine('<span class="lb plan">plan</span><span class="ltext">' + escapeHtml(e.text) + '</span>', "plan");
       break;

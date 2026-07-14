@@ -17,6 +17,15 @@ function extractText(event: any): string {
 export function renderEvent(event: any): void {
   const t = event?.type;
   switch (t) {
+    case "routing": {
+      const receipt = event.receipt ?? event;
+      const selected = receipt.sdkResolvedModel?.id ?? receipt.selectedModel ?? receipt.requestedModel ?? "unknown";
+      const label = receipt.status === "blocked"
+        ? `blocked · ${receipt.blockedReason ?? "model unavailable"}`
+        : `${receipt.tier ?? ""} ${receipt.workKind ?? "work"} → ${selected}`.trim();
+      process.stdout.write(`  \x1b[35m[routing]\x1b[0m ${label}\n`);
+      break;
+    }
     case "assistant": {
       const text = extractText(event);
       if (text) process.stdout.write(text);

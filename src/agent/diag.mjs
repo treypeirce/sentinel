@@ -1,13 +1,16 @@
 // Diagnostic: does this key run a LOCAL agent, or is agent access plan-gated?
-import { Agent } from "@cursor/sdk";
+import { Agent, Cursor } from "@cursor/sdk";
+import { planModelRoute, resolveModelRoute, routingSummary } from "./modelRouting.ts";
 
 const apiKey = process.env.CURSOR_API_KEY;
-console.log(`key: length ${apiKey?.length}, prefix ${apiKey?.slice(0, 8)}…`);
+console.log(`key: ${apiKey ? `present (length ${apiKey.length})` : "missing"}`);
 
-const model = process.env.SENTINEL_MODEL ?? "auto";
+if (!apiKey) process.exit(2);
+const route = resolveModelRoute(planModelRoute("fix"), await Cursor.models.list({ apiKey }));
+if (!route.selection) { console.error("routing blocked:", route.receipt.blockedReason); process.exit(2); }
 try {
-  console.log(`creating LOCAL agent (model=${model}) …`);
-  const agent = await Agent.create({ apiKey, model: { id: model }, local: { cwd: "/tmp" } });
+  console.log(`creating LOCAL agent (${routingSummary(route.receipt)}) …`);
+  const agent = await Agent.create({ apiKey, model: route.selection, local: { cwd: "/tmp" } });
   console.log(`local agent created: ${agent.agentId ?? "(ok)"}`);
   const run = await agent.send("Reply with exactly: PING-OK. Do not use any tools.");
   for await (const _ev of run.stream()) {
